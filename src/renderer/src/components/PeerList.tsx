@@ -62,17 +62,6 @@ export class PeerList extends Component<PeerListProps> {
             >
               {peer.paired ? 'Trusted' : 'New'}
             </span>
-            {peer.paired ? (
-              <button
-                className="trust-clear"
-                disabled={this.props.clearDisabled}
-                title="Clear this one-way trust"
-                aria-label={`Clear trust for ${peer.displayName}`}
-                onClick={() => this.props.onClearTrust(peer.deviceId)}
-              >
-                X
-              </button>
-            ) : null}
             <button
               className="button small primary"
               disabled={this.props.disabled || !peer.online || peer.controlPort === null}
@@ -87,6 +76,17 @@ export class PeerList extends Component<PeerListProps> {
             >
               Share
             </button>
+            {peer.paired ? (
+              <button
+                className="trust-clear"
+                disabled={this.props.clearDisabled}
+                title="Clear this one-way trust"
+                aria-label={`Clear trust for ${peer.displayName}`}
+                onClick={() => this.props.onClearTrust(peer.deviceId)}
+              >
+                X
+              </button>
+            ) : null}
           </article>
         ))}
       </div>

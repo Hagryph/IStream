@@ -1,6 +1,6 @@
 {
   "name": "istream",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Private LAN streaming control-plane baseline for Windows 10",
   "author": "Yannis",
   "license": "PolyForm-Noncommercial-1.0.0",
