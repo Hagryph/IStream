@@ -27,8 +27,16 @@ The baseline configuration is usable and persisted. It defaults to:
 - 35 Mbps ceiling
 - SDR; HDR automatic is opt-in
 - Adapt bitrate, then frame rate, then hold the last HD frame/reconnect
-- Keyboard/mouse policy enabled
+- Keyboard/mouse policy reserved but disabled until the input module is implemented
 - Application safety lock enabled for League of Legends executables
+
+## First working video/audio path
+
+The connected media roles now start an actual WebRTC session inside Electron. The sharing side captures the primary Windows display and system-audio loopback. The viewer renders the remote stream in the application with full-screen support. WebRTC offer, answer, and ICE candidate messages are schema-bounded and carried only inside the authenticated encrypted control session. No public STUN/TURN service or internet relay is configured.
+
+The sender prefers H.264, applies the configured bitrate and frame-rate ceiling, sets a 1:1 resolution scale, and requests resolution-preserving degradation. A disconnected media path retains the last rendered frame while the sharing side performs an ICE restart. Direction reversal tears down the old media role and starts a fresh generation in the opposite direction.
+
+This is the functional fallback/baseline, not the final native competitive-gaming engine. Chromium controls detailed congestion behavior and hardware encoder selection. Protected surfaces and some hardware overlays may still capture black. Explicit WGC/DXGI selection, NVENC preset control, HDR, measured latency guarantees, and the strict freeze-at-HD capacity floor remain native-sidecar work.
 
 ## Diagnostic recording and on-demand transfer
 
@@ -47,13 +55,12 @@ The loopback reader deliberately has no LAN binding or CORS access. Diagnostic p
 
 ## Deliberate native boundary
 
-No browser capture API is used. Browser/Electron display capture can return protected-content black frames and does not provide the deterministic low-latency path needed for gaming. The next stage belongs in a separate native Windows sidecar using Windows Graphics Capture with DXGI fallback and NVENC.
+The first working fallback uses Electron display capture and WebRTC, while the performance-qualified path belongs in a separate native Windows sidecar using Windows Graphics Capture with DXGI fallback and NVENC. Electron capture can return protected-content black frames and does not provide deterministic encoder/latency control.
 
 This also answers the DLL/process packaging decision: keep React/Electron free of capture, codec, driver, and input DLLs. The main process talks to a supervised native executable through a restricted local IPC channel. The executable and required DLLs can still be included inside the installer, so users do not manually assemble dependencies.
 
 ## Not yet implemented
 
-- Video/audio capture, encoding, transport, decode, presentation, and A/V synchronization
 - Freeze-last-HD-frame media behavior and automatic media-session resumption
 - Keyboard/mouse injection, stuck-key cleanup, and protected-application enforcement
 - HDR capability negotiation and HDR-to-SDR fallback

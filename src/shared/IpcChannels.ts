@@ -10,4 +10,6 @@ export class IpcChannels {
   static readonly connectivitySnapshotChanged: string = 'connectivity:snapshot-changed';
   static readonly configurationGet: string = 'configuration:get';
   static readonly configurationUpdate: string = 'configuration:update';
+  static readonly mediaSendSignal: string = 'media:send-signal';
+  static readonly mediaSignalReceived: string = 'media:signal-received';
 }

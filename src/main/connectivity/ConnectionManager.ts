@@ -6,6 +6,7 @@ import { PairedPeerStore } from './PairedPeerStore';
 import { PeerSession, type PeerSessionPresentation } from './PeerSession';
 import { DiagnosticEventSource, type CollectedDiagnosticRecord, type DiagnosticRecord } from '../../shared/DiagnosticContracts';
 import { DiagnosticsHub } from '../diagnostics/DiagnosticsHub';
+import type { MediaSignal } from '../../shared/MediaContracts';
 
 export type ConnectionManagerChangedListener = () => void;
 
@@ -14,6 +15,7 @@ export class ConnectionManager {
   readonly #pairedPeerStore: PairedPeerStore;
   readonly #networkInterfaceProvider: NetworkInterfaceProvider;
   readonly #diagnosticsHub: DiagnosticsHub;
+  readonly #mediaSignalListener: (signal: MediaSignal) => void;
   readonly #listeners: Set<ConnectionManagerChangedListener> = new Set<ConnectionManagerChangedListener>();
   #session: PeerSession | null = null;
 
@@ -21,12 +23,14 @@ export class ConnectionManager {
     identity: DeviceIdentity,
     pairedPeerStore: PairedPeerStore,
     networkInterfaceProvider: NetworkInterfaceProvider,
-    diagnosticsHub: DiagnosticsHub
+    diagnosticsHub: DiagnosticsHub,
+    mediaSignalListener: (signal: MediaSignal) => void
   ) {
     this.#identity = identity;
     this.#pairedPeerStore = pairedPeerStore;
     this.#networkInterfaceProvider = networkInterfaceProvider;
     this.#diagnosticsHub = diagnosticsHub;
+    this.#mediaSignalListener = mediaSignalListener;
   }
 
   public presentation(): PeerSessionPresentation {
@@ -66,6 +70,7 @@ export class ConnectionManager {
       this.#pairedPeerStore,
       (limit) => this.localDiagnosticRecords(limit),
       (record, source) => this.#diagnosticsHub.publish(record, source),
+      this.#mediaSignalListener,
       expectedDeviceId
     );
     this.installSession(session);
@@ -84,7 +89,8 @@ export class ConnectionManager {
       this.#identity,
       this.#pairedPeerStore,
       (limit) => this.localDiagnosticRecords(limit),
-      (record, source) => this.#diagnosticsHub.publish(record, source)
+      (record, source) => this.#diagnosticsHub.publish(record, source),
+      this.#mediaSignalListener
     );
     this.installSession(session);
     session.start();
@@ -132,6 +138,13 @@ export class ConnectionManager {
     }
     this.#session.disconnect();
     this.notifyChanged();
+  }
+
+  public sendMediaSignal(signal: MediaSignal): void {
+    if (this.#session === null) {
+      throw new Error('There is no active connection for streaming.');
+    }
+    this.#session.sendMediaSignal(signal);
   }
 
   public dispose(): void {

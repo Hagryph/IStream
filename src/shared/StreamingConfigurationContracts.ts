@@ -1,4 +1,5 @@
 import type { ConnectivityApi } from './ConnectivityContracts';
+import type { MediaApi } from './MediaContracts';
 
 export enum StreamingPreset {
   Gaming = 'gaming',
@@ -40,7 +41,7 @@ export interface StreamConfigurationApi {
   updateStreamConfiguration(configuration: StreamingConfiguration): Promise<StreamingConfiguration>;
 }
 
-export interface IStreamApi extends ConnectivityApi, StreamConfigurationApi {}
+export interface IStreamApi extends ConnectivityApi, StreamConfigurationApi, MediaApi {}
 
 export class StreamingConfigurationDefaults {
   public static stableGaming(): StreamingConfiguration {
@@ -54,7 +55,7 @@ export class StreamingConfigurationDefaults {
       maximumBitrateMbps: 35,
       hdrMode: HdrMode.Off,
       capacityFloorMode: CapacityFloorMode.FreezeAndReconnectAtHd,
-      inputEnabled: true,
+      inputEnabled: false,
       applicationSafetyLockEnabled: true,
       protectedApplications: ['League of Legends.exe', 'LeagueClientUx.exe']
     };

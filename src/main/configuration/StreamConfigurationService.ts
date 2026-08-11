@@ -52,6 +52,7 @@ export class StreamConfigurationValidator {
     }
     return {
       ...configuration,
+      inputEnabled: false,
       maximumBitrateMbps: Math.round(configuration.maximumBitrateMbps),
       protectedApplications: [...new Set(protectedApplications)]
     };

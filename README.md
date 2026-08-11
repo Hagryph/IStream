@@ -1,6 +1,6 @@
 # IStream
 
-IStream is a Windows 10 private-LAN remote gaming/desktop streaming project. This repository currently contains the minimum Electron UI and a functional secure connectivity control plane. It intentionally does not pretend that video, audio, or remote input are already streaming.
+IStream is a Windows 10 private-LAN remote gaming/desktop streaming project. It now includes a first working video/system-audio stream over WebRTC in addition to its secure connectivity control plane. Remote keyboard and mouse input are deliberately not part of this release yet.
 
 ## What works now
 
@@ -17,6 +17,9 @@ IStream is a Windows 10 private-LAN remote gaming/desktop streaming project. Thi
 - Electron context isolation and a narrow preload API. Renderer code has no Node.js or socket access.
 - Centralized plain-language UI errors for pairing codes, connectivity, discovery, diagnostics, settings, and startup; technical causes remain available to local diagnostics and developer logs.
 - Automated enforcement that TypeScript/TSX source has no module-scope functions or variables.
+- Primary-display capture and Windows system-audio loopback on the sharing PC, with video/audio playback and a full-screen viewer on the receiving PC.
+- LAN-only WebRTC media with SDP and ICE candidates carried through the authenticated AES-256-GCM control channel; no STUN, TURN, cloud relay, or internet service is configured.
+- H.264 preference for GTX 1060-class compatibility, profile-controlled bitrate/FPS targets, resolution-preserving congestion preference, and automatic ICE restart after an interrupted media path.
 
 ## Run it
 
@@ -68,17 +71,25 @@ The diagnostic schema includes state, direction/role, RTT, connection age, healt
 
 Diagnostics never contain keystrokes, mouse contents, pairing verification codes, private identity keys, session keys, authentication tags, or decrypted media. The HTTP reader binds only to `127.0.0.1`, so it is not exposed to the LAN and needs no firewall rule.
 
+## Media behavior and current boundary
+
+Choose **View** on the PC that should receive the remote screen, or **Share** on the PC whose screen should be sent. After pairing/approval, streaming starts automatically. The Share side captures its primary display and Windows loopback audio; the View side shows both in the Live media panel.
+
+This first media implementation uses Electron/Chromium WebRTC. It is useful for proving real end-to-end capture, encrypted negotiation, LAN transport, playback, direction reversal, and reconnect behavior. WebRTC is asked to maintain resolution and reduce delivery rate under congestion, but Chromium remains responsible for its internal congestion controller. Protected or hardware-overlay content can still appear black, and this stage does not yet provide the deterministic Windows Graphics Capture/DXGI + NVENC latency path needed for final competitive-gaming qualification.
+
+Keyboard and mouse translation remains disabled at the implementation level even if the future-input policy is visible in configuration.
+
 ## Process architecture
 
-Electron is the UI and orchestration layer. It owns discovery, pairing state, configuration, and consent UI. Native capture, NVENC, transport, decode, audio, and keyboard/mouse translation belong in a separate signed native sidecar process behind `MediaEngine`.
+Electron is the UI and orchestration layer. It owns discovery, pairing state, configuration, consent UI, and the current WebRTC media baseline. The final deterministic capture/NVENC path and keyboard/mouse translation belong in a separate signed native sidecar process behind `MediaEngine`.
 
 A sidecar is preferred over importing streaming DLLs into Electron because GPU-driver faults, capture stalls, and input-hook errors must not crash or corrupt the UI process. It also allows the native real-time threads to avoid Chromium scheduling and garbage collection. Packaging can still feel like one product: the sidecar executable and its DLLs are installed beside the Electron application and launched/monitored internally.
 
-The boundary is declared in `src/main/media/MediaEngine.ts`. The UI reports the boundary honestly until that engine exists.
+The native boundary is declared in `src/main/media/MediaEngine.ts`. The WebRTC path works without that sidecar and provides a functional fallback for ordinary desktop/game capture.
 
 ## Next implementation boundary
 
-The native engine must add Windows Graphics Capture/DXGI capture, NVENC, low-latency media transport, decode/render, audio, and SendInput-based translation. The adaptation controller must apply bitrate reduction first, then frame-rate reduction, then either hold the last valid 720p-or-better frame and reconnect or temporarily allow sub-HD according to the saved configuration.
+The native engine must add Windows Graphics Capture/DXGI capture, explicit NVENC control, measured low-latency decode/render, and SendInput-based translation. The final adaptation controller must apply bitrate reduction first, then frame-rate reduction, then either hold the last valid 720p-or-better frame and reconnect or temporarily allow sub-HD according to the saved configuration.
 
 See [implementation status](docs/implementation-baseline.md), [architecture research](docs/research/lan-streaming-architecture.md), and [configuration specification](docs/research/configuration-specification.md).
 

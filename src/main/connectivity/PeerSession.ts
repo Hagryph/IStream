@@ -20,6 +20,7 @@ import {
   type DiagnosticRecord
 } from '../../shared/DiagnosticContracts';
 import { DeviceIdentity } from './DeviceIdentity';
+import type { MediaSignal } from '../../shared/MediaContracts';
 import { JsonLineTransport } from './JsonLineTransport';
 import { PairedPeerStore } from './PairedPeerStore';
 import {
@@ -36,6 +37,7 @@ import {
   type ConsentDecisionMessage,
   type DiagnosticsBatchMessage,
   type DiagnosticsRequestMessage,
+  type MediaSignalMessage,
   type PingMessage,
   type PongMessage,
   type ReversalDecisionMessage,
@@ -62,6 +64,7 @@ export interface PeerSessionPresentation {
 export type PeerSessionChangedListener = () => void;
 export type DiagnosticRecordProvider = (limit: number) => readonly DiagnosticRecord[];
 export type DiagnosticRecordListener = (record: DiagnosticRecord, source: DiagnosticEventSource) => void;
+export type MediaSignalListener = (signal: MediaSignal) => void;
 
 export interface PendingDiagnosticRequest {
   readonly limit: number;
@@ -76,6 +79,7 @@ export class PeerSession {
   readonly #identity: DeviceIdentity;
   readonly #diagnosticRecordProvider: DiagnosticRecordProvider;
   readonly #diagnosticRecordListener: DiagnosticRecordListener;
+  readonly #mediaSignalListener: MediaSignalListener;
   readonly #transport: JsonLineTransport;
   readonly #agreement: EphemeralKeyAgreement = new EphemeralKeyAgreement();
   readonly #handshakeFactory: HandshakeFactory;
@@ -117,12 +121,14 @@ export class PeerSession {
     pairedPeerStore: PairedPeerStore,
     diagnosticRecordProvider: DiagnosticRecordProvider,
     diagnosticRecordListener: DiagnosticRecordListener,
+    mediaSignalListener: MediaSignalListener,
     expectedDeviceId: string | null = null
   ) {
     this.#pairedPeerStore = pairedPeerStore;
     this.#identity = identity;
     this.#diagnosticRecordProvider = diagnosticRecordProvider;
     this.#diagnosticRecordListener = diagnosticRecordListener;
+    this.#mediaSignalListener = mediaSignalListener;
     this.#remoteAddress = remoteAddress;
     this.#initiator = initiator;
     this.#expectedDeviceId = expectedDeviceId;
@@ -243,6 +249,13 @@ export class PeerSession {
         reject(error instanceof Error ? error : new Error('Could not request peer diagnostics.'));
       }
     });
+  }
+
+  public sendMediaSignal(signal: MediaSignal): void {
+    if (this.#phase !== PeerSessionPhase.Connected) {
+      throw new Error('Media negotiation requires an active peer connection.');
+    }
+    this.sendSecure({ kind: SecureMessageKind.MediaSignal, signal });
   }
 
   public disconnect(reason: string = 'Disconnected by the user.'): void {
@@ -369,6 +382,9 @@ export class PeerSession {
         break;
       case SecureMessageKind.DiagnosticsBatch:
         this.handleDiagnosticsBatch(message);
+        break;
+      case SecureMessageKind.MediaSignal:
+        this.handleMediaSignal(message);
         break;
       default:
         throw new Error('Unsupported secure control message.');
@@ -550,6 +566,13 @@ export class PeerSession {
       this.#pendingDiagnosticRequests.delete(message.requestId);
       pending.resolve(pending.records);
     }
+  }
+
+  private handleMediaSignal(message: MediaSignalMessage): void {
+    if (this.#phase !== PeerSessionPhase.Connected) {
+      throw new Error('Media negotiation arrived before connection consent.');
+    }
+    this.#mediaSignalListener(message.signal);
   }
 
   private startKeepAlive(): void {

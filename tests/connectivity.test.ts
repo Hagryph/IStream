@@ -14,6 +14,7 @@ import {
 import type { CollectedDiagnosticRecord } from '../src/shared/DiagnosticContracts';
 import { ConnectivityFacade } from '../src/main/connectivity/ConnectivityFacade';
 import { EndpointParser, NetworkInterfaceProvider } from '../src/main/connectivity/NetworkAddressing';
+import { MediaSignalFactory, MediaSignalKind, type MediaSignal } from '../src/shared/MediaContracts';
 
 class ConnectivityTestHarness {
   readonly #temporaryDirectories: string[] = [];
@@ -78,6 +79,15 @@ class ConnectivityTestHarness {
         expect(sharerConnected.connection.role).toBe(LocalMediaRole.Sharer);
         expect(viewerConnected.connection.peer?.paired).toBe(false);
         expect(sharerConnected.connection.peer?.paired).toBe(true);
+
+        const receivedMediaSignal = this.waitForMediaSignal(sharer);
+        const offerSignal = MediaSignalFactory.sessionDescription(
+          'test-media-generation',
+          MediaSignalKind.Offer,
+          'v=0\r\ns=- IStream media test\r\n'
+        );
+        viewer.sendMediaSignal(offerSignal);
+        await expect(receivedMediaSignal).resolves.toEqual(offerSignal);
 
         const remoteDiagnostics = await viewer.requestRemoteDiagnostics(10);
         expect(remoteDiagnostics.length).toBeGreaterThan(0);
@@ -269,6 +279,20 @@ class ConnectivityTestHarness {
     await Promise.all(this.#temporaryDirectories.map((directory) => rm(directory, { recursive: true, force: true })));
     this.#facades.length = 0;
     this.#temporaryDirectories.length = 0;
+  }
+
+  private waitForMediaSignal(facade: ConnectivityFacade): Promise<MediaSignal> {
+    return new Promise<MediaSignal>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        unsubscribe();
+        reject(new Error('Timed out waiting for encrypted media signaling.'));
+      }, 3000);
+      const unsubscribe = facade.subscribeMediaSignals((signal) => {
+        clearTimeout(timeout);
+        unsubscribe();
+        resolve(signal);
+      });
+    });
   }
 }
 

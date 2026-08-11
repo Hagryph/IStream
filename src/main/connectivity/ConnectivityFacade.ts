@@ -20,6 +20,7 @@ import { PairedPeerStore } from './PairedPeerStore';
 import { DiagnosticsHub } from '../diagnostics/DiagnosticsHub';
 import { DiagnosticsHttpServer } from '../diagnostics/DiagnosticsHttpServer';
 import type { CollectedDiagnosticRecord } from '../../shared/DiagnosticContracts';
+import type { MediaSignal } from '../../shared/MediaContracts';
 
 export interface ConnectivityRuntimeOptions {
   readonly userDataPath: string;
@@ -35,6 +36,7 @@ export class ConnectivityFacade {
   readonly #options: ConnectivityRuntimeOptions;
   readonly #networkInterfaceProvider: NetworkInterfaceProvider = new NetworkInterfaceProvider();
   readonly #listeners: Set<ConnectivityFacadeListener> = new Set<ConnectivityFacadeListener>();
+  readonly #mediaSignalListeners: Set<(signal: MediaSignal) => void> = new Set<(signal: MediaSignal) => void>();
   readonly #diagnosticsHub: DiagnosticsHub = new DiagnosticsHub();
   #serviceState: ServiceState = ServiceState.Starting;
   #identity: DeviceIdentity | null = null;
@@ -58,7 +60,8 @@ export class ConnectivityFacade {
         this.#identity,
         this.#pairedPeerStore,
         this.#networkInterfaceProvider,
-        this.#diagnosticsHub
+        this.#diagnosticsHub,
+        (signal) => this.notifyMediaSignal(signal)
       );
       this.#connectionManager.subscribe(() => this.notifyListeners());
       this.#controlServer = new ControlServer(
@@ -134,6 +137,17 @@ export class ConnectivityFacade {
     return (): void => {
       this.#listeners.delete(listener);
     };
+  }
+
+  public subscribeMediaSignals(listener: (signal: MediaSignal) => void): () => void {
+    this.#mediaSignalListeners.add(listener);
+    return (): void => {
+      this.#mediaSignalListeners.delete(listener);
+    };
+  }
+
+  public sendMediaSignal(signal: MediaSignal): void {
+    this.requiredManager().sendMediaSignal(signal);
   }
 
   public async connectManual(request: ManualConnectionRequest): Promise<void> {
@@ -277,6 +291,12 @@ export class ConnectivityFacade {
     const snapshot = this.snapshot();
     for (const listener of this.#listeners) {
       listener(snapshot);
+    }
+  }
+
+  private notifyMediaSignal(signal: MediaSignal): void {
+    for (const listener of this.#mediaSignalListeners) {
+      listener(signal);
     }
   }
 }

@@ -125,7 +125,7 @@ export type ConnectivitySnapshotListener = (snapshot: ConnectivitySnapshot) => v
 export type ConnectivityUnsubscribe = () => void;
 
 export class ConnectivityDefaults {
-  static readonly protocolVersion: number = 1;
+  static readonly protocolVersion: number = 2;
   static readonly discoveryPort: number = 47777;
   static readonly preferredControlPort: number = 47778;
   static readonly multicastAddress: string = '239.255.77.77';

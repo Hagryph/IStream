@@ -18,6 +18,12 @@ import { PeerList } from './components/PeerList';
 import { StreamingPolicyPanel } from './components/StreamingPolicyPanel';
 import { DiagnosticsPanel } from './components/DiagnosticsPanel';
 import { UserFacingError } from './UserFacingError';
+import { StreamViewport } from './components/StreamViewport';
+import {
+  RendererMediaState,
+  WebRtcMediaSession,
+  type RendererMediaPresentation
+} from './media/WebRtcMediaSession';
 
 export interface AppState {
   readonly snapshot: ConnectivitySnapshot;
@@ -26,35 +32,49 @@ export interface AppState {
   readonly notice: string | null;
   readonly configuration: StreamingConfiguration;
   readonly configurationDirty: boolean;
+  readonly media: RendererMediaPresentation;
 }
 
 export class App extends Component<Record<string, never>, AppState> {
   #unsubscribe: (() => void) | null = null;
+  readonly #mediaSession: WebRtcMediaSession;
 
   public constructor(props: Record<string, never>) {
     super(props);
+    this.#mediaSession = new WebRtcMediaSession(window.istream, (media) => this.setState({ media }));
     this.state = {
       snapshot: App.initialSnapshot(),
       manualEndpoint: '',
       busy: false,
       notice: null,
       configuration: StreamingConfigurationDefaults.stableGaming(),
-      configurationDirty: false
+      configurationDirty: false,
+      media: {
+        state: RendererMediaState.Idle,
+        detail: 'Connect to another PC to begin streaming.',
+        stream: null,
+        muted: false
+      }
     };
   }
 
   public override componentDidMount(): void {
-    this.#unsubscribe = window.istream.onSnapshot((snapshot) => this.setState({ snapshot }));
+    this.#mediaSession.install();
+    this.#unsubscribe = window.istream.onSnapshot((snapshot) => this.acceptSnapshot(snapshot));
     void window.istream.getSnapshot()
-      .then((snapshot) => this.setState({ snapshot }))
+      .then((snapshot) => this.acceptSnapshot(snapshot))
       .catch((error: unknown) => this.setNotice(error));
     void window.istream.getStreamConfiguration()
-      .then((configuration) => this.setState({ configuration, configurationDirty: false }))
+      .then((configuration) => {
+        this.setState({ configuration, configurationDirty: false });
+        this.#mediaSession.synchronize(this.state.snapshot.connection, configuration);
+      })
       .catch((error: unknown) => this.setNotice(error));
   }
 
   public override componentWillUnmount(): void {
     this.#unsubscribe?.();
+    this.#mediaSession.dispose();
   }
 
   public override render(): React.ReactNode {
@@ -88,6 +108,10 @@ export class App extends Component<Record<string, never>, AppState> {
             busy={this.state.busy}
             onReverse={() => this.perform(() => window.istream.requestReversal())}
             onDisconnect={() => this.perform(() => window.istream.disconnect())}
+          />
+          <StreamViewport
+            media={this.state.media}
+            role={this.state.snapshot.connection.role}
           />
           <div className="two-column">
             <PeerList
@@ -161,6 +185,7 @@ export class App extends Component<Record<string, never>, AppState> {
     void this.perform(async () => {
       const configuration = await window.istream.updateStreamConfiguration(this.state.configuration);
       this.setState({ configuration, configurationDirty: false });
+      this.#mediaSession.synchronize(this.state.snapshot.connection, configuration);
     });
   }
 
@@ -177,6 +202,11 @@ export class App extends Component<Record<string, never>, AppState> {
 
   private setNotice(error: unknown): void {
     this.setState({ notice: UserFacingError.from(error) });
+  }
+
+  private acceptSnapshot(snapshot: ConnectivitySnapshot): void {
+    this.setState({ snapshot });
+    this.#mediaSession.synchronize(snapshot.connection, this.state.configuration);
   }
 
   private static initialSnapshot(): ConnectivitySnapshot {

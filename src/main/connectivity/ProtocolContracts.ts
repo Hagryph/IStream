@@ -1,5 +1,6 @@
 import { ConnectionIntent } from '../../shared/ConnectivityContracts';
 import type { DiagnosticRecord } from '../../shared/DiagnosticContracts';
+import type { MediaSignal } from '../../shared/MediaContracts';
 
 export enum WireMessageKind {
   ClientHello = 'client-hello',
@@ -18,7 +19,8 @@ export enum SecureMessageKind {
   Disconnect = 'disconnect',
   ProtocolError = 'protocol-error',
   DiagnosticsRequest = 'diagnostics-request',
-  DiagnosticsBatch = 'diagnostics-batch'
+  DiagnosticsBatch = 'diagnostics-batch',
+  MediaSignal = 'media-signal'
 }
 
 export interface ClientHelloMessage {
@@ -112,6 +114,11 @@ export interface DiagnosticsBatchMessage {
   readonly complete: boolean;
 }
 
+export interface MediaSignalMessage {
+  readonly kind: SecureMessageKind.MediaSignal;
+  readonly signal: MediaSignal;
+}
+
 export type WireMessage = ClientHelloMessage | ServerHelloMessage | SecureEnvelope;
 export type SecureMessage =
   | ReadyMessage
@@ -124,10 +131,13 @@ export type SecureMessage =
   | DisconnectMessage
   | ProtocolErrorMessage
   | DiagnosticsRequestMessage
-  | DiagnosticsBatchMessage;
+  | DiagnosticsBatchMessage
+  | MediaSignalMessage;
 
 export class ProtocolLimits {
   static readonly maximumFrameBytes: number = 65_536;
   static readonly maximumDisplayNameLength: number = 64;
   static readonly handshakeTimeoutMs: number = 10_000;
+  static readonly maximumSessionDescriptionLength: number = 32_000;
+  static readonly maximumIceCandidateLength: number = 4_096;
 }

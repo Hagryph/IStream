@@ -9,6 +9,7 @@ import type {
 } from '../shared/ConnectivityContracts';
 import { IpcChannels } from '../shared/IpcChannels';
 import type { IStreamApi, StreamingConfiguration } from '../shared/StreamingConfigurationContracts';
+import type { MediaSignal, MediaSignalListener } from '../shared/MediaContracts';
 
 export class PreloadConnectivityBridge {
   public install(): void {
@@ -29,6 +30,15 @@ export class PreloadConnectivityBridge {
         ipcRenderer.invoke(IpcChannels.configurationGet) as Promise<StreamingConfiguration>,
       updateStreamConfiguration: (configuration: StreamingConfiguration) =>
         ipcRenderer.invoke(IpcChannels.configurationUpdate, configuration) as Promise<StreamingConfiguration>,
+      sendMediaSignal: (signal: MediaSignal) =>
+        ipcRenderer.invoke(IpcChannels.mediaSendSignal, signal) as Promise<void>,
+      onMediaSignal: (listener: MediaSignalListener) => {
+        const eventListener = (_event: IpcRendererEvent, signal: MediaSignal): void => listener(signal);
+        ipcRenderer.on(IpcChannels.mediaSignalReceived, eventListener);
+        return (): void => {
+          ipcRenderer.removeListener(IpcChannels.mediaSignalReceived, eventListener);
+        };
+      },
       onSnapshot: (listener: ConnectivitySnapshotListener) => {
         const eventListener = (_event: IpcRendererEvent, snapshot: ConnectivitySnapshot): void => listener(snapshot);
         ipcRenderer.on(IpcChannels.connectivitySnapshotChanged, eventListener);

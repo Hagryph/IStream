@@ -9,10 +9,13 @@ import { IpcChannels } from '../shared/IpcChannels';
 import type { StreamingConfiguration } from '../shared/StreamingConfigurationContracts';
 import { StreamConfigurationService } from './configuration/StreamConfigurationService';
 import { ConnectivityFacade } from './connectivity/ConnectivityFacade';
+import type { MediaSignal } from '../shared/MediaContracts';
 
 export class ConnectivityIpcController {
   readonly #facade: ConnectivityFacade;
   readonly #configurationService: StreamConfigurationService;
+  #unsubscribeSnapshot: (() => void) | null = null;
+  #unsubscribeMediaSignals: (() => void) | null = null;
 
   public constructor(facade: ConnectivityFacade, configurationService: StreamConfigurationService) {
     this.#facade = facade;
@@ -45,10 +48,21 @@ export class ConnectivityIpcController {
       IpcChannels.configurationUpdate,
       (_event: IpcMainInvokeEvent, configuration: StreamingConfiguration) => this.#configurationService.update(configuration)
     );
-    this.#facade.subscribe((snapshot) => {
+    ipcMain.handle(
+      IpcChannels.mediaSendSignal,
+      (_event: IpcMainInvokeEvent, signal: MediaSignal) => this.#facade.sendMediaSignal(signal)
+    );
+    this.#unsubscribeSnapshot = this.#facade.subscribe((snapshot) => {
       for (const window of BrowserWindow.getAllWindows()) {
         if (!window.isDestroyed()) {
           window.webContents.send(IpcChannels.connectivitySnapshotChanged, snapshot);
+        }
+      }
+    });
+    this.#unsubscribeMediaSignals = this.#facade.subscribeMediaSignals((signal) => {
+      for (const window of BrowserWindow.getAllWindows()) {
+        if (!window.isDestroyed()) {
+          window.webContents.send(IpcChannels.mediaSignalReceived, signal);
         }
       }
     });
@@ -65,5 +79,10 @@ export class ConnectivityIpcController {
     ipcMain.removeHandler(IpcChannels.connectivityDisconnect);
     ipcMain.removeHandler(IpcChannels.configurationGet);
     ipcMain.removeHandler(IpcChannels.configurationUpdate);
+    ipcMain.removeHandler(IpcChannels.mediaSendSignal);
+    this.#unsubscribeSnapshot?.();
+    this.#unsubscribeSnapshot = null;
+    this.#unsubscribeMediaSignals?.();
+    this.#unsubscribeMediaSignals = null;
   }
 }

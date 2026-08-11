@@ -112,14 +112,14 @@ export class StreamingPolicyPanel extends Component<StreamingPolicyPanelProps> {
           <div className="configuration-field toggle-stack">
             <span>Remote input and game safety</span>
             <label className="toggle-row">
-              <input type="checkbox" checked={this.props.configuration.inputEnabled} onChange={(event) => this.updateInput(event)} />
-              <strong>Enable keyboard and mouse translation</strong>
+              <input type="checkbox" checked={false} disabled onChange={(event) => this.updateInput(event)} />
+              <strong>Keyboard and mouse translation — coming later</strong>
             </label>
             <label className="toggle-row">
               <input type="checkbox" checked={this.props.configuration.applicationSafetyLockEnabled} onChange={(event) => this.updateSafetyLock(event)} />
               <strong>Auto-lock input for protected applications</strong>
             </label>
-            <small>The native input module must release injected keys before a protected process or direction reversal.</small>
+            <small>Video and audio are active now. Remote input remains disabled until the protected native input module is added.</small>
           </div>
         </div>
         <label className="configuration-field protected-applications">
@@ -132,7 +132,7 @@ export class StreamingPolicyPanel extends Component<StreamingPolicyPanelProps> {
           <small>League of Legends is protected by default. This policy is persisted, but enforcement belongs to the native input sidecar.</small>
         </label>
         <p className="boundary-note">
-          Connectivity and configuration persistence are functional. Capture, NVENC, media transport, decode, and input injection are deliberately isolated behind the native sidecar interface and are not simulated by the Electron UI.
+          The current WebRTC path streams the primary display and Windows system audio. Native NVENC control, protected-content capture, HDR, and input injection remain isolated behind the future sidecar interface.
         </p>
       </section>
     );

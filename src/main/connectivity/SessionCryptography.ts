@@ -14,6 +14,7 @@ import { ConnectionIntent, ConnectivityDefaults } from '../../shared/Connectivit
 import { DeviceIdentity } from './DeviceIdentity';
 import { DiagnosticDefaults } from '../../shared/DiagnosticContracts';
 import { DiagnosticRecordValidator } from '../diagnostics/DiagnosticRecordValidator';
+import { MediaSignalKind, type MediaSignal } from '../../shared/MediaContracts';
 import {
   ProtocolLimits,
   SecureMessageKind,
@@ -375,6 +376,11 @@ export class ProtocolValidator {
           };
         }
         break;
+      case SecureMessageKind.MediaSignal:
+        return {
+          kind: SecureMessageKind.MediaSignal,
+          signal: this.mediaSignal(candidate.signal)
+        };
       default:
         break;
     }
@@ -400,5 +406,51 @@ export class ProtocolValidator {
 
   private static base64(value: unknown, maximumLength: number = 4096): value is string {
     return typeof value === 'string' && value.length > 0 && value.length <= maximumLength && /^[A-Za-z0-9+/]+={0,2}$/.test(value);
+  }
+
+  private static mediaSignal(value: unknown): MediaSignal {
+    const candidate = this.record(value);
+    if (!this.identifier(candidate.generation, 64)) {
+      throw new Error('Invalid media session identifier.');
+    }
+    if (candidate.kind === MediaSignalKind.Offer || candidate.kind === MediaSignalKind.Answer) {
+      if (
+        typeof candidate.sdp === 'string' &&
+        candidate.sdp.length > 0 &&
+        candidate.sdp.length <= ProtocolLimits.maximumSessionDescriptionLength &&
+        candidate.candidate === null &&
+        candidate.sdpMid === null &&
+        candidate.sdpMLineIndex === null
+      ) {
+        return candidate as unknown as MediaSignal;
+      }
+    }
+    if (candidate.kind === MediaSignalKind.IceCandidate) {
+      if (
+        typeof candidate.candidate === 'string' &&
+        candidate.candidate.length > 0 &&
+        candidate.candidate.length <= ProtocolLimits.maximumIceCandidateLength &&
+        candidate.sdp === null &&
+        (candidate.sdpMid === null || this.identifier(candidate.sdpMid, 256)) &&
+        (candidate.sdpMLineIndex === null || (
+          typeof candidate.sdpMLineIndex === 'number' &&
+          Number.isInteger(candidate.sdpMLineIndex) &&
+          candidate.sdpMLineIndex >= 0 &&
+          candidate.sdpMLineIndex <= 32
+        ))
+      ) {
+        return candidate as unknown as MediaSignal;
+      }
+    }
+    if (
+      candidate.kind === MediaSignalKind.IceComplete &&
+      candidate.sdp === null &&
+      candidate.candidate === null &&
+      candidate.sdpMid === null &&
+      candidate.sdpMLineIndex === null
+    ) {
+      return candidate as unknown as MediaSignal;
+    }
+    throw new Error('Invalid media negotiation message.');
   }
 }
