@@ -80,7 +80,7 @@ See [implementation status](docs/implementation-baseline.md), [architecture rese
 
 ## Build and GitHub publishing
 
-`npm run dist` builds the NSIS installer, copies it to the project root, synchronizes reviewed source changes to `main`, and publishes `v<package.json version>` as the latest GitHub Release. The release contains the installer, block map, `latest.yml`, and SHA-256 checksums.
+`npm run dist` builds the NSIS installer, copies it to the project root, removes older root-level IStream installers, synchronizes reviewed source changes to `main`, and publishes `v<package.json version>` as the latest GitHub Release. The release contains the installer, block map, `latest.yml`, and SHA-256 checksums.
 
 Publishing requires the expected `Hagryph/IStream` origin, the `main` branch, a clean working tree synchronized with `origin/main`, and an authenticated GitHub CLI. Rebuilding the same commit replaces that release's assets. If the version tag already belongs to a different commit, publishing stops and requires a version bump instead of moving a released tag.
 

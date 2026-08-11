@@ -16,11 +16,28 @@ class IStreamInstallerArtifactCopier {
     const destination = path.join(projectRoot, path.basename(installerArtifact));
     fileSystem.copyFileSync(installerArtifact, destination);
     process.stdout.write(`  - copied installer to project root: ${destination}\n`);
+    IStreamInstallerArtifactCopier.removeOldRootInstallers(fileSystem, path, projectRoot, destination);
     const GitHubBuildSynchronizer = require('./sync-github-after-build.cjs');
     await GitHubBuildSynchronizer.synchronize(projectRoot);
     const GitHubReleasePublisher = require('./publish-github-release.cjs');
     await GitHubReleasePublisher.publish(projectRoot, buildResult.outDir);
     return [];
+  }
+
+  static removeOldRootInstallers(fileSystem, path, projectRoot, currentInstaller) {
+    const resolvedRoot = path.resolve(projectRoot);
+    const resolvedCurrentInstaller = path.resolve(currentInstaller);
+    const oldInstallers = fileSystem.readdirSync(resolvedRoot, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && /^IStream-\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?-Setup\.exe$/i.test(entry.name))
+      .map((entry) => path.resolve(resolvedRoot, entry.name))
+      .filter((installerPath) => installerPath !== resolvedCurrentInstaller);
+    for (const oldInstaller of oldInstallers) {
+      if (path.dirname(oldInstaller) !== resolvedRoot) {
+        throw new Error(`Refusing to remove installer outside the project root: ${oldInstaller}`);
+      }
+      fileSystem.unlinkSync(oldInstaller);
+      process.stdout.write(`  - removed old root installer: ${oldInstaller}\n`);
+    }
   }
 }
 
