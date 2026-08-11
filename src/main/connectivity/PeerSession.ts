@@ -3,6 +3,7 @@ import type { Socket } from 'node:net';
 import {
   ConnectionIntent,
   ConnectionState,
+  ConsentPromptMode,
   ConnectivityDefaults,
   LocalMediaRole,
   PromptKind,
@@ -170,13 +171,30 @@ export class PeerSession {
     return this.#phase === PeerSessionPhase.Closed;
   }
 
-  public async respondToPrompt(promptId: string, accepted: boolean): Promise<void> {
+  public async respondToPrompt(
+    promptId: string,
+    accepted: boolean,
+    verificationCode: string | null
+  ): Promise<void> {
     if (this.#prompt === null || this.#prompt.promptId !== promptId) {
       throw new Error('That consent request is no longer active.');
     }
     if (this.#prompt.kind === PromptKind.Reversal) {
       this.respondToReversal(accepted);
       return;
+    }
+    if (this.#prompt.mode === ConsentPromptMode.WaitingForPeer && accepted) {
+      throw new Error('The requesting computer is already approved and is waiting for the peer.');
+    }
+    if (this.#prompt.mode === ConsentPromptMode.EnterVerificationCode && accepted) {
+      const enteredCode = verificationCode?.trim() ?? '';
+      if (
+        this.#verificationCode === null ||
+        !/^\d{6}$/.test(enteredCode) ||
+        !ProtocolValidator.constantTimeEqual(enteredCode, this.#verificationCode)
+      ) {
+        throw new Error('The verification code does not match the requesting computer.');
+      }
     }
     this.#prompt = null;
     this.#localConsent = accepted;
@@ -364,14 +382,25 @@ export class PeerSession {
     }
     this.#phase = PeerSessionPhase.AwaitingConsent;
     const knownPeer = this.#peer.paired;
+    if (this.#verificationCode === null) {
+      throw new Error('The secure connection verification code is unavailable.');
+    }
     this.#prompt = {
       promptId: randomUUID(),
       kind: knownPeer ? PromptKind.Connection : PromptKind.Pairing,
+      mode: this.#initiator
+        ? ConsentPromptMode.WaitingForPeer
+        : ConsentPromptMode.EnterVerificationCode,
       peerName: this.#peer.displayName,
-      verificationCode: knownPeer ? null : this.#verificationCode,
+      verificationCode: this.#initiator ? this.#verificationCode : null,
       intent: this.#intent,
       knownPeer
     };
+    this.startKeepAlive();
+    if (this.#initiator) {
+      this.#localConsent = true;
+      this.sendSecure({ kind: SecureMessageKind.ConsentDecision, accepted: true });
+    }
     this.notifyChanged();
   }
 
@@ -402,6 +431,7 @@ export class PeerSession {
       });
       this.#peer = { ...this.#peer, paired: true };
     }
+    this.#prompt = null;
     this.#phase = PeerSessionPhase.Connected;
     this.#connectedAt = Date.now();
     this.#role = this.initialRole();
@@ -411,8 +441,8 @@ export class PeerSession {
   }
 
   private handlePing(message: PingMessage): void {
-    if (this.#phase !== PeerSessionPhase.Connected) {
-      throw new Error('Health check received before connection consent.');
+    if (this.#phase !== PeerSessionPhase.Connected && this.#phase !== PeerSessionPhase.AwaitingConsent) {
+      throw new Error('Health check received before the secure consent phase.');
     }
     this.sendSecure({ kind: SecureMessageKind.Pong, pingId: message.pingId });
   }
@@ -435,6 +465,7 @@ export class PeerSession {
     this.#prompt = {
       promptId: randomUUID(),
       kind: PromptKind.Reversal,
+      mode: ConsentPromptMode.Decision,
       peerName: this.#peer?.displayName ?? 'Peer',
       verificationCode: null,
       intent: null,
@@ -510,6 +541,9 @@ export class PeerSession {
   }
 
   private startKeepAlive(): void {
+    if (this.#keepAliveTimer !== null) {
+      return;
+    }
     this.#lastSecureMessageAt = Date.now();
     this.#keepAliveTimer = setInterval(() => this.keepAliveTick(), ConnectivityDefaults.keepAliveIntervalMs);
   }

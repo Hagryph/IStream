@@ -90,11 +90,11 @@ export class ConnectionManager {
     session.start();
   }
 
-  public async respondToPrompt(promptId: string, accepted: boolean): Promise<void> {
+  public async respondToPrompt(promptId: string, accepted: boolean, verificationCode: string | null): Promise<void> {
     if (this.#session === null) {
       throw new Error('There is no active consent request.');
     }
-    await this.#session.respondToPrompt(promptId, accepted);
+    await this.#session.respondToPrompt(promptId, accepted, verificationCode);
   }
 
   public requestReversal(): void {
@@ -122,6 +122,12 @@ export class ConnectionManager {
 
   public disconnect(): void {
     if (this.#session === null) {
+      return;
+    }
+    if (this.#session.isClosed()) {
+      this.#session.dispose();
+      this.#session = null;
+      this.notifyChanged();
       return;
     }
     this.#session.disconnect();

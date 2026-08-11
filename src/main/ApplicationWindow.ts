@@ -7,10 +7,10 @@ export class ApplicationWindow {
   public create(): BrowserWindow {
     const smokeTest = process.argv.includes('--istream-smoke-test');
     this.#window = new BrowserWindow({
-      width: 1120,
-      height: 760,
-      minWidth: 880,
-      minHeight: 620,
+      width: 1500,
+      height: 980,
+      minWidth: 1000,
+      minHeight: 700,
       backgroundColor: '#070c14',
       show: false,
       title: 'IStream',

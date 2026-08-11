@@ -11,6 +11,7 @@ export interface ConnectionStatusPanelProps {
 export class ConnectionStatusPanel extends Component<ConnectionStatusPanelProps> {
   public override render(): React.ReactNode {
     const connected = this.props.connection.state === ConnectionState.Connected;
+    const failed = this.props.connection.state === ConnectionState.Failed;
     return (
       <section className="panel connection-panel">
         <div className="panel-heading">
@@ -42,8 +43,8 @@ export class ConnectionStatusPanel extends Component<ConnectionStatusPanelProps>
           <button className="button secondary" disabled={!connected || this.props.busy} onClick={this.props.onReverse}>
             Reverse direction
           </button>
-          <button className="button danger" disabled={!connected || this.props.busy} onClick={this.props.onDisconnect}>
-            Disconnect
+          <button className="button danger" disabled={(!connected && !failed) || this.props.busy} onClick={this.props.onDisconnect}>
+            {failed ? 'Clear' : 'Disconnect'}
           </button>
         </div>
       </section>
@@ -55,7 +56,7 @@ export class ConnectionStatusPanel extends Component<ConnectionStatusPanelProps>
       return 'Secure control channel connected';
     }
     if (this.props.connection.state === ConnectionState.Pairing) {
-      return 'Waiting for mutual approval';
+      return 'Waiting for code confirmation';
     }
     if (this.props.connection.state === ConnectionState.Connecting) {
       return 'Authenticating peer';

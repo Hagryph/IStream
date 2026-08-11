@@ -5,11 +5,11 @@ IStream is a Windows 10 private-LAN remote gaming/desktop streaming project. Thi
 ## What works now
 
 - One application can initiate or receive connections, with **View remote PC** and **Share this PC** directions.
-- UDP multicast discovery on `239.255.77.77:47777` plus manual private-IPv4 connection.
+- UDP multicast discovery on `239.255.77.77:47777`, immediate refresh/probe, seven-second offline expiry, and manual private-IPv4 connection.
 - TCP control service on `47778`, automatically trying through `47788` if needed.
 - Persistent Ed25519 device identity and pinned paired-peer public keys.
-- Ephemeral X25519 session key agreement, mutual signed handshake, AES-256-GCM control messages, monotonic replay counters, and a six-digit first-pair verification code.
-- Explicit approval on both computers, encrypted health checks/RTT, disconnect handling, and consent-based direction reversal.
+- Ephemeral X25519 session key agreement, mutual signed handshake, AES-256-GCM control messages, monotonic replay counters, and a fresh six-digit verification code for every connection.
+- The requester waits with the code; the requested PC must enter it to approve. Encrypted health checks also run while approval is pending so an offline peer closes the request automatically.
 - Atomically persisted and validated streaming policy settings.
 - Continuous per-instance diagnostic recording with a rolling ten-minute in-memory history and a 10,000-record burst guard.
 - Loopback-only NDJSON diagnostics for command-line inspection and encrypted, on-demand peer-history retrieval.
@@ -38,7 +38,7 @@ npm.cmd test
 npm.cmd run build
 ```
 
-The integration suite runs two independent services, completes encrypted pairing, verifies complementary roles, reverses direction after consent, and disconnects. The production build is written to `out/`.
+The integration suite runs two independent services, rejects a wrong code, completes encrypted pairing and a trusted reconnection, verifies complementary roles, reverses direction after consent, detects an offline peer while waiting, and disconnects. The production build is written to `out/`.
 
 ## Command-line diagnostics
 
@@ -80,7 +80,7 @@ See [implementation status](docs/implementation-baseline.md), [architecture rese
 
 ## Build and GitHub publishing
 
-`npm run dist` builds the NSIS installer, copies it to the project root, removes older root-level IStream installers, synchronizes reviewed source changes to `main`, and publishes `v<package.json version>` as the latest GitHub Release. The release contains the installer, block map, `latest.yml`, and SHA-256 checksums.
+`npm run dist` builds the one-click, per-user NSIS installer, copies it to the project root, removes older root-level IStream installers, synchronizes reviewed source changes to `main`, and publishes `v<package.json version>` as the latest GitHub Release. The release contains the installer, block map, `latest.yml`, and SHA-256 checksums.
 
 Publishing requires the expected `Hagryph/IStream` origin, the `main` branch, a clean working tree synchronized with `origin/main`, and an authenticated GitHub CLI. Rebuilding the same commit replaces that release's assets. If the version tag already belongs to a different commit, publishing stops and requires a version bump instead of moving a released tag.
 

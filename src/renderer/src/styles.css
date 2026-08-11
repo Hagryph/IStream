@@ -20,7 +20,9 @@ body {
 }
 
 button,
-input {
+input,
+select,
+textarea {
   font: inherit;
 }
 
@@ -128,7 +130,7 @@ h2 {
 .content {
   display: grid;
   gap: 16px;
-  max-width: 1180px;
+  max-width: 1420px;
   margin: 0 auto;
   padding: 24px 30px 36px;
 }
@@ -148,6 +150,12 @@ h2 {
 
 .panel-heading.compact {
   margin-bottom: 14px;
+}
+
+.panel-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .eyebrow,
@@ -174,11 +182,16 @@ h2 {
   text-transform: capitalize;
 }
 
-.state-connected,
-.trust-badge.trusted {
+.state-connected {
   border-color: rgba(57, 217, 138, 0.45);
   color: #65e7a4;
   background: rgba(27, 93, 62, 0.23);
+}
+
+.trust-badge.trusted {
+  border-color: rgba(82, 153, 226, 0.5);
+  color: #9fcaff;
+  background: rgba(24, 70, 119, 0.25);
 }
 
 .state-connecting,
@@ -375,6 +388,15 @@ h2 {
   background: #080f1a;
 }
 
+.configuration-field select {
+  appearance: none;
+  padding-right: 36px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5l5-5' fill='none' stroke='%238ab8ec' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px 8px;
+}
+
 .configuration-field textarea {
   resize: vertical;
 }
@@ -546,6 +568,43 @@ h2 {
 .verification-block strong {
   font-size: 31px;
   letter-spacing: 0.16em;
+}
+
+.verification-entry {
+  display: grid;
+  gap: 8px;
+  margin: 18px 0;
+  color: #a6c7ed;
+  font-size: 12px;
+}
+
+.verification-entry input {
+  width: 100%;
+  height: 54px;
+  border: 1px solid #2b69ae;
+  border-radius: 8px;
+  outline: none;
+  color: #f0f6ff;
+  background: #08172a;
+  font-size: 27px;
+  font-weight: 750;
+  letter-spacing: 0.22em;
+  text-align: center;
+}
+
+.verification-entry input:focus {
+  border-color: #4d9cff;
+  box-shadow: 0 0 0 3px rgba(49, 140, 255, 0.16);
+}
+
+.dialog-error {
+  margin-top: 12px;
+  padding: 9px 11px;
+  border: 1px solid #67323e;
+  border-radius: 7px;
+  color: #ffacb5;
+  background: rgba(89, 24, 35, 0.3);
+  font-size: 12px;
 }
 
 .dialog-details {

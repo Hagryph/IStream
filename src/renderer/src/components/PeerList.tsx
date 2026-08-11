@@ -4,7 +4,9 @@ import { ConnectionIntent, type DiscoveredPeerDescriptor } from '../../../shared
 export interface PeerListProps {
   readonly peers: readonly DiscoveredPeerDescriptor[];
   readonly disabled: boolean;
+  readonly refreshDisabled: boolean;
   readonly onConnect: (deviceId: string, intent: ConnectionIntent) => void;
+  readonly onRefresh: () => void;
 }
 
 export class PeerList extends Component<PeerListProps> {
@@ -16,7 +18,16 @@ export class PeerList extends Component<PeerListProps> {
             <span className="eyebrow">Automatic discovery</span>
             <h2>Computers on this LAN</h2>
           </div>
-          <span className="count-badge">{this.props.peers.length}</span>
+          <div className="panel-heading-actions">
+            <span className="count-badge">{this.props.peers.length}</span>
+            <button
+              className="button small secondary"
+              disabled={this.props.refreshDisabled}
+              onClick={this.props.onRefresh}
+            >
+              Refresh
+            </button>
+          </div>
         </div>
         {this.props.peers.length === 0 ? this.renderEmptyState() : this.renderPeers()}
       </section>
@@ -42,7 +53,12 @@ export class PeerList extends Component<PeerListProps> {
               <strong>{peer.displayName}</strong>
               <span>{peer.address}:{peer.controlPort}</span>
             </div>
-            <span className={`trust-badge ${peer.paired ? 'trusted' : ''}`}>{peer.paired ? 'Paired' : 'New'}</span>
+            <span
+              className={`trust-badge ${peer.paired ? 'trusted' : ''}`}
+              title={peer.paired ? 'Stored trusted identity; this does not indicate an active connection.' : 'Not paired yet'}
+            >
+              {peer.paired ? 'Trusted' : 'New'}
+            </span>
             <button
               className="button small primary"
               disabled={this.props.disabled}

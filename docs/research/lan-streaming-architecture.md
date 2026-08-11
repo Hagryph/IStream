@@ -493,8 +493,8 @@ Since this is private/non-commercial deployment, skip public auto-update infrast
 
 1. A discovers B or enters B's local address.
 2. Both exchange ephemeral challenge material and long-term device certificate fingerprints over the local signaling channel.
-3. Both display the same six-word/short numeric authentication string, or one displays a QR code.
-4. The user confirms on both devices.
+3. The requester displays a short numeric authentication string (or later, a QR code) and waits.
+4. The requested device must enter that string to confirm both peer presence and user consent; the requester's initiation is its consent.
 5. Each device stores the peer fingerprint and friendly alias in OS-protected storage.
 6. Future sessions authenticate the pinned device before offering capture or input permissions.
 

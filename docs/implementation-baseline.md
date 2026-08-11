@@ -8,12 +8,12 @@ The secure control path is fully operational for the baseline:
 
 1. The TCP initiator sends a signed device identity plus ephemeral X25519 key.
 2. The receiver validates it and returns its own signed identity and ephemeral key.
-3. Both derive directional AES-256-GCM keys and the same six-digit short authentication string.
-4. Both users approve the new device. A successful identity is pinned atomically.
-5. Encrypted counters prevent replay; encrypted ping/pong frames report RTT and detect interruption.
+3. Both derive directional AES-256-GCM keys and the same six-digit short authentication string without exposing it to the requested PC's renderer.
+4. The requester displays the code and waits. The requested PC must enter that code to approve; a successful identity is pinned atomically. The same fresh-code confirmation is required for later sessions with a pinned identity.
+5. Encrypted counters prevent replay; encrypted ping/pong frames report RTT and detect interruption during both confirmation and an active connection.
 6. Direction reversal is an encrypted request and is applied only after remote consent.
 
-Discovery is link-local in behavior: multicast TTL is one, beacons contain no secrets, and manual destinations must be RFC1918 IPv4 or loopback. An identity spoof in a discovery beacon cannot complete the signed handshake. The optional firewall script narrows inbound access to the Windows Private profile and local subnet.
+Discovery is link-local in behavior: multicast TTL is one, beacons contain no secrets, peers expire after seven seconds without a beacon, and Refresh clears stale entries then sends an immediate multicast probe. Manual destinations must be RFC1918 IPv4 or loopback. An identity spoof in a discovery beacon cannot complete the signed handshake. The optional firewall script narrows inbound access to the Windows Private profile and local subnet.
 
 The baseline configuration is usable and persisted. It defaults to:
 

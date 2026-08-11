@@ -29,6 +29,12 @@ export enum PromptKind {
   Reversal = 'reversal'
 }
 
+export enum ConsentPromptMode {
+  WaitingForPeer = 'waiting-for-peer',
+  EnterVerificationCode = 'enter-verification-code',
+  Decision = 'decision'
+}
+
 export interface LocalEndpointDescriptor {
   readonly deviceId: string;
   readonly displayName: string;
@@ -55,6 +61,7 @@ export interface ConnectedPeerDescriptor {
 export interface ConsentPromptDescriptor {
   readonly promptId: string;
   readonly kind: PromptKind;
+  readonly mode: ConsentPromptMode;
   readonly peerName: string;
   readonly verificationCode: string | null;
   readonly intent: ConnectionIntent | null;
@@ -92,10 +99,12 @@ export interface DiscoveredConnectionRequest {
 export interface ConsentDecisionRequest {
   readonly promptId: string;
   readonly accepted: boolean;
+  readonly verificationCode: string | null;
 }
 
 export interface ConnectivityApi {
   getSnapshot(): Promise<ConnectivitySnapshot>;
+  refreshDiscovery(): Promise<void>;
   connectDiscovered(request: DiscoveredConnectionRequest): Promise<void>;
   connectManual(request: ManualConnectionRequest): Promise<void>;
   respondToPrompt(request: ConsentDecisionRequest): Promise<void>;

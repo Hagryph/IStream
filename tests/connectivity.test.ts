@@ -5,6 +5,7 @@ import { afterEach, describe, expect, test } from 'vitest';
 import {
   ConnectionIntent,
   ConnectionState,
+  ConsentPromptMode,
   LocalMediaRole,
   PromptKind,
   type ConnectivitySnapshot
@@ -41,13 +42,24 @@ class ConnectivityTestHarness {
         });
         const viewerPairing = await this.waitFor(viewer, (snapshot) => snapshot.prompt?.kind === PromptKind.Pairing);
         const sharerPairing = await this.waitFor(sharer, (snapshot) => snapshot.prompt?.kind === PromptKind.Pairing);
+        expect(viewerPairing.prompt?.mode).toBe(ConsentPromptMode.WaitingForPeer);
+        expect(sharerPairing.prompt?.mode).toBe(ConsentPromptMode.EnterVerificationCode);
         expect(viewerPairing.prompt?.verificationCode).toMatch(/^\d{6}$/);
-        expect(sharerPairing.prompt?.verificationCode).toBe(viewerPairing.prompt?.verificationCode);
+        expect(sharerPairing.prompt?.verificationCode).toBeNull();
 
-        await Promise.all([
-          viewer.respondToPrompt({ promptId: viewerPairing.prompt?.promptId ?? '', accepted: true }),
-          sharer.respondToPrompt({ promptId: sharerPairing.prompt?.promptId ?? '', accepted: true })
-        ]);
+        await expect(sharer.respondToPrompt({
+          promptId: sharerPairing.prompt?.promptId ?? '',
+          accepted: true,
+          verificationCode: viewerPairing.prompt?.verificationCode === '000000' ? '000001' : '000000'
+        })).rejects.toThrow('does not match');
+        expect(sharer.snapshot().connection.state).toBe(ConnectionState.Pairing);
+        expect(sharer.snapshot().prompt?.promptId).toBe(sharerPairing.prompt?.promptId);
+
+        await sharer.respondToPrompt({
+          promptId: sharerPairing.prompt?.promptId ?? '',
+          accepted: true,
+          verificationCode: viewerPairing.prompt?.verificationCode ?? ''
+        });
         const viewerConnected = await this.waitFor(
           viewer,
           (snapshot) => snapshot.connection.state === ConnectionState.Connected
@@ -70,7 +82,11 @@ class ConnectivityTestHarness {
           sharer,
           (snapshot) => snapshot.prompt?.kind === PromptKind.Reversal
         );
-        await sharer.respondToPrompt({ promptId: reversalPrompt.prompt?.promptId ?? '', accepted: true });
+        await sharer.respondToPrompt({
+          promptId: reversalPrompt.prompt?.promptId ?? '',
+          accepted: true,
+          verificationCode: null
+        });
         const reversedViewer = await this.waitFor(
           viewer,
           (snapshot) => snapshot.connection.role === LocalMediaRole.Sharer
@@ -85,6 +101,59 @@ class ConnectivityTestHarness {
         await viewer.disconnect();
         await this.waitFor(viewer, (snapshot) => snapshot.connection.state === ConnectionState.Idle);
         await this.waitFor(sharer, (snapshot) => snapshot.connection.state === ConnectionState.Idle);
+
+        await viewer.connectManual({
+          endpoint: `127.0.0.1:${sharerPort ?? 0}`,
+          intent: ConnectionIntent.ViewRemote
+        });
+        const returningRequester = await this.waitFor(
+          viewer,
+          (snapshot) => snapshot.prompt?.kind === PromptKind.Connection
+        );
+        const returningRequested = await this.waitFor(
+          sharer,
+          (snapshot) => snapshot.prompt?.kind === PromptKind.Connection
+        );
+        expect(returningRequester.prompt?.mode).toBe(ConsentPromptMode.WaitingForPeer);
+        expect(returningRequested.prompt?.mode).toBe(ConsentPromptMode.EnterVerificationCode);
+        await sharer.respondToPrompt({
+          promptId: returningRequested.prompt?.promptId ?? '',
+          accepted: true,
+          verificationCode: returningRequester.prompt?.verificationCode ?? ''
+        });
+        await this.waitFor(viewer, (snapshot) => snapshot.connection.state === ConnectionState.Connected);
+        await this.waitFor(sharer, (snapshot) => snapshot.connection.state === ConnectionState.Connected);
+
+        await viewer.disconnect();
+        await this.waitFor(viewer, (snapshot) => snapshot.connection.state === ConnectionState.Idle);
+        await this.waitFor(sharer, (snapshot) => snapshot.connection.state === ConnectionState.Idle);
+      });
+
+      test('detects a peer going offline while waiting for code confirmation', async () => {
+        const requester = await this.createFacade();
+        const requested = await this.createFacade();
+        await Promise.all([requester.start(), requested.start()]);
+        const requestedPort = requested.snapshot().localEndpoint?.controlPort;
+
+        await requester.connectManual({
+          endpoint: `127.0.0.1:${requestedPort ?? 0}`,
+          intent: ConnectionIntent.ViewRemote
+        });
+        await this.waitFor(
+          requester,
+          (snapshot) => snapshot.prompt?.mode === ConsentPromptMode.WaitingForPeer
+        );
+
+        await requested.stop();
+        const failed = await this.waitFor(
+          requester,
+          (snapshot) => snapshot.connection.state === ConnectionState.Failed
+        );
+        expect(failed.prompt).toBeNull();
+        expect(failed.connection.error).not.toBeNull();
+
+        await requester.disconnect();
+        expect(requester.snapshot().connection.state).toBe(ConnectionState.Idle);
       });
     });
   }

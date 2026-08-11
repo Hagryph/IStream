@@ -16,6 +16,15 @@ export interface DiscoveryBeacon {
   readonly sentAt: number;
 }
 
+export interface DiscoveryProbe {
+  readonly kind: 'istream-discovery-probe';
+  readonly protocolVersion: number;
+  readonly deviceId: string;
+  readonly sentAt: number;
+}
+
+export type DiscoveryPacket = DiscoveryBeacon | DiscoveryProbe;
+
 export type DiscoveryChangedListener = (peers: readonly DiscoveredPeerDescriptor[]) => void;
 
 export class DiscoveryBeaconCodec {
@@ -31,9 +40,28 @@ export class DiscoveryBeaconCodec {
     return Buffer.from(JSON.stringify(beacon), 'utf8');
   }
 
-  public decode(message: Buffer): DiscoveryBeacon | null {
+  public encodeProbe(identity: DeviceIdentity): Buffer {
+    const probe: DiscoveryProbe = {
+      kind: 'istream-discovery-probe',
+      protocolVersion: ConnectivityDefaults.protocolVersion,
+      deviceId: identity.deviceId,
+      sentAt: Date.now()
+    };
+    return Buffer.from(JSON.stringify(probe), 'utf8');
+  }
+
+  public decode(message: Buffer): DiscoveryPacket | null {
     try {
-      const candidate = JSON.parse(message.toString('utf8')) as Partial<DiscoveryBeacon>;
+      const candidate = JSON.parse(message.toString('utf8')) as Partial<DiscoveryPacket>;
+      if (
+        candidate.kind === 'istream-discovery-probe' &&
+        candidate.protocolVersion === ConnectivityDefaults.protocolVersion &&
+        typeof candidate.deviceId === 'string' &&
+        candidate.deviceId.length === 32 &&
+        typeof candidate.sentAt === 'number'
+      ) {
+        return candidate as DiscoveryProbe;
+      }
       if (
         candidate.kind !== 'istream-beacon' ||
         candidate.protocolVersion !== ConnectivityDefaults.protocolVersion ||
@@ -68,6 +96,7 @@ export class DiscoveryService {
   #beaconTimer: NodeJS.Timeout | null = null;
   #expiryTimer: NodeJS.Timeout | null = null;
   #controlPort: number = 0;
+  #lastProbeResponseAt: number = 0;
 
   public constructor(
     identity: DeviceIdentity,
@@ -123,6 +152,20 @@ export class DiscoveryService {
     return [...this.#peers.values()].sort((left, right) => left.displayName.localeCompare(right.displayName));
   }
 
+  public refresh(): void {
+    if (this.#socket === null) {
+      throw new Error('LAN discovery is not running.');
+    }
+    this.#peers.clear();
+    this.notifyListeners();
+    this.sendBeacon();
+    this.#socket.send(
+      this.#codec.encodeProbe(this.#identity),
+      ConnectivityDefaults.discoveryPort,
+      ConnectivityDefaults.multicastAddress
+    );
+  }
+
   public subscribe(listener: DiscoveryChangedListener): () => void {
     this.#listeners.add(listener);
     return (): void => {
@@ -154,10 +197,19 @@ export class DiscoveryService {
   }
 
   private handleMessage(message: Buffer, remoteInfo: RemoteInfo): void {
-    const beacon = this.#codec.decode(message);
-    if (beacon === null || beacon.deviceId === this.#identity.deviceId) {
+    const packet = this.#codec.decode(message);
+    if (packet === null || packet.deviceId === this.#identity.deviceId) {
       return;
     }
+    if (packet.kind === 'istream-discovery-probe') {
+      const now = Date.now();
+      if (now - this.#lastProbeResponseAt >= 500) {
+        this.#lastProbeResponseAt = now;
+        this.sendBeacon();
+      }
+      return;
+    }
+    const beacon = packet;
     const peer: DiscoveredPeerDescriptor = {
       deviceId: beacon.deviceId,
       displayName: beacon.displayName,

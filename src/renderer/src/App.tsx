@@ -57,7 +57,10 @@ export class App extends Component<Record<string, never>, AppState> {
   }
 
   public override render(): React.ReactNode {
-    const unavailable = this.state.busy || this.state.snapshot.connection.state !== ConnectionState.Idle;
+    const unavailable = this.state.busy || ![
+      ConnectionState.Idle,
+      ConnectionState.Failed
+    ].includes(this.state.snapshot.connection.state);
     return (
       <div className="app-shell">
         <AppHeader
@@ -72,15 +75,15 @@ export class App extends Component<Record<string, never>, AppState> {
             onReverse={() => this.perform(() => window.istream.requestReversal())}
             onDisconnect={() => this.perform(() => window.istream.disconnect())}
           />
-          <DiagnosticsPanel
-            endpoint={this.state.snapshot.diagnostics}
-            connection={this.state.snapshot.connection}
-          />
           <div className="two-column">
             <PeerList
               peers={this.state.snapshot.discoveredPeers}
               disabled={unavailable}
+              refreshDisabled={
+                this.state.busy || this.state.snapshot.serviceState !== ServiceState.Ready
+              }
               onConnect={(deviceId, intent) => this.connectDiscovered(deviceId, intent)}
+              onRefresh={() => this.refreshDiscovery()}
             />
             <ManualConnectionPanel
               endpoint={this.state.manualEndpoint}
@@ -96,11 +99,16 @@ export class App extends Component<Record<string, never>, AppState> {
             onChange={(configuration) => this.setState({ configuration, configurationDirty: true })}
             onSave={() => this.saveConfiguration()}
           />
+          <DiagnosticsPanel
+            endpoint={this.state.snapshot.diagnostics}
+            connection={this.state.snapshot.connection}
+          />
         </main>
         <ConsentDialog
           prompt={this.state.snapshot.prompt}
           busy={this.state.busy}
-          onDecision={(accepted) => this.respondToPrompt(accepted)}
+          error={this.state.notice}
+          onDecision={(accepted, verificationCode) => this.respondToPrompt(accepted, verificationCode)}
         />
       </div>
     );
@@ -114,11 +122,19 @@ export class App extends Component<Record<string, never>, AppState> {
     void this.perform(() => window.istream.connectDiscovered({ deviceId, intent }));
   }
 
-  private respondToPrompt(accepted: boolean): void {
+  private respondToPrompt(accepted: boolean, verificationCode: string | null): void {
     const prompt = this.state.snapshot.prompt;
     if (prompt !== null) {
-      void this.perform(() => window.istream.respondToPrompt({ promptId: prompt.promptId, accepted }));
+      void this.perform(() => window.istream.respondToPrompt({
+        promptId: prompt.promptId,
+        accepted,
+        verificationCode
+      }));
     }
+  }
+
+  private refreshDiscovery(): void {
+    void this.perform(() => window.istream.refreshDiscovery());
   }
 
   private saveConfiguration(): void {

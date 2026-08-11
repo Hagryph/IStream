@@ -146,6 +146,15 @@ export class ConnectivityFacade {
     });
   }
 
+  public async refreshDiscovery(): Promise<void> {
+    await this.performOperation(async () => {
+      if (this.#discoveryService === null) {
+        throw new Error('LAN discovery is not available.');
+      }
+      this.#discoveryService.refresh();
+    });
+  }
+
   public async connectDiscovered(request: DiscoveredConnectionRequest): Promise<void> {
     await this.performOperation(async () => {
       const peer = this.#discoveryService?.peers().find((candidate) => candidate.deviceId === request.deviceId);
@@ -161,7 +170,11 @@ export class ConnectivityFacade {
   }
 
   public async respondToPrompt(request: ConsentDecisionRequest): Promise<void> {
-    await this.performOperation(() => this.requiredManager().respondToPrompt(request.promptId, request.accepted));
+    await this.performOperation(() => this.requiredManager().respondToPrompt(
+      request.promptId,
+      request.accepted,
+      request.verificationCode
+    ));
   }
 
   public async requestReversal(): Promise<void> {
