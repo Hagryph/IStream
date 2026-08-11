@@ -57,6 +57,43 @@ button:disabled {
   align-items: center;
 }
 
+.peer-row.offline {
+  border-color: #202c3a;
+  background: rgba(7, 12, 18, 0.42);
+  filter: saturate(0.45);
+  opacity: 0.64;
+}
+
+.peer-presence {
+  color: #7f8c9b;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.peer-presence.online {
+  color: #65e7a4;
+}
+
+.trust-clear {
+  display: grid;
+  width: 27px;
+  height: 27px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid #3d4b5c;
+  border-radius: 50%;
+  color: #b7c5d5;
+  background: #111a25;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.trust-clear:hover:not(:disabled) {
+  border-color: #744150;
+  color: #ffadb7;
+  background: #2b171e;
+}
+
 .brand-row {
   gap: 13px;
 }

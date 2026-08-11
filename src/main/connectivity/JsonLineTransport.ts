@@ -78,20 +78,24 @@ export class JsonLineTransport {
   private handleData(chunk: string): void {
     this.#bytesReceived += Buffer.byteLength(chunk, 'utf8');
     this.#buffer += chunk;
-    if (Buffer.byteLength(this.#buffer, 'utf8') > this.#maximumFrameBytes) {
-      this.notifyClosed('The peer sent an oversized control message.');
-      this.close();
-      return;
-    }
     let lineBreakIndex = this.#buffer.indexOf('\n');
     while (lineBreakIndex >= 0) {
       const line = this.#buffer.slice(0, lineBreakIndex);
       this.#buffer = this.#buffer.slice(lineBreakIndex + 1);
       if (line.length > 0) {
+        if (Buffer.byteLength(line, 'utf8') + 1 > this.#maximumFrameBytes) {
+          this.notifyClosed('The peer sent an oversized control message.');
+          this.close();
+          return;
+        }
         this.#framesReceived += 1;
         this.parseLine(line);
       }
       lineBreakIndex = this.#buffer.indexOf('\n');
+    }
+    if (Buffer.byteLength(this.#buffer, 'utf8') > this.#maximumFrameBytes) {
+      this.notifyClosed('The peer sent an oversized control message.');
+      this.close();
     }
   }
 

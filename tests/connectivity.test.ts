@@ -6,10 +6,12 @@ import {
   ConnectionIntent,
   ConnectionState,
   ConsentPromptMode,
+  ConnectivityDefaults,
   LocalMediaRole,
   PromptKind,
   type ConnectivitySnapshot
 } from '../src/shared/ConnectivityContracts';
+import type { CollectedDiagnosticRecord } from '../src/shared/DiagnosticContracts';
 import { ConnectivityFacade } from '../src/main/connectivity/ConnectivityFacade';
 import { EndpointParser, NetworkInterfaceProvider } from '../src/main/connectivity/NetworkAddressing';
 
@@ -33,7 +35,11 @@ class ConnectivityTestHarness {
         const viewer = await this.createFacade();
         const sharer = await this.createFacade();
         await Promise.all([viewer.start(), sharer.start()]);
+        const viewerPort = viewer.snapshot().localEndpoint?.controlPort;
         const sharerPort = sharer.snapshot().localEndpoint?.controlPort;
+        const viewerDeviceId = viewer.snapshot().localEndpoint?.deviceId ?? '';
+        const sharerDeviceId = sharer.snapshot().localEndpoint?.deviceId ?? '';
+        expect(viewerPort).toBeTypeOf('number');
         expect(sharerPort).toBeTypeOf('number');
 
         await viewer.connectManual({
@@ -70,7 +76,8 @@ class ConnectivityTestHarness {
         );
         expect(viewerConnected.connection.role).toBe(LocalMediaRole.Viewer);
         expect(sharerConnected.connection.role).toBe(LocalMediaRole.Sharer);
-        expect(viewerConnected.connection.peer?.paired).toBe(true);
+        expect(viewerConnected.connection.peer?.paired).toBe(false);
+        expect(sharerConnected.connection.peer?.paired).toBe(true);
 
         const remoteDiagnostics = await viewer.requestRemoteDiagnostics(10);
         expect(remoteDiagnostics.length).toBeGreaterThan(0);
@@ -82,6 +89,7 @@ class ConnectivityTestHarness {
           sharer,
           (snapshot) => snapshot.prompt?.kind === PromptKind.Reversal
         );
+        expect(viewer.snapshot().prompt).toBeNull();
         await sharer.respondToPrompt({
           promptId: reversalPrompt.prompt?.promptId ?? '',
           accepted: true,
@@ -101,36 +109,91 @@ class ConnectivityTestHarness {
         await viewer.disconnect();
         await this.waitFor(viewer, (snapshot) => snapshot.connection.state === ConnectionState.Idle);
         await this.waitFor(sharer, (snapshot) => snapshot.connection.state === ConnectionState.Idle);
+        const retainedViewerTrust = sharer.snapshot().discoveredPeers.find(
+          (peer) => peer.deviceId === viewerDeviceId
+        );
+        expect(retainedViewerTrust?.paired).toBe(true);
+        expect(retainedViewerTrust?.online).toBe(false);
+        expect((retainedViewerTrust?.trustExpiresAt ?? 0) - Date.now()).toBeGreaterThan(
+          ConnectivityDefaults.trustDurationMs - 10_000
+        );
 
         await viewer.connectManual({
           endpoint: `127.0.0.1:${sharerPort ?? 0}`,
           intent: ConnectionIntent.ViewRemote
         });
-        const returningRequester = await this.waitFor(
-          viewer,
-          (snapshot) => snapshot.prompt?.kind === PromptKind.Connection
-        );
-        const returningRequested = await this.waitFor(
+        await this.waitFor(viewer, (snapshot) => snapshot.connection.state === ConnectionState.Connected);
+        await this.waitFor(sharer, (snapshot) => snapshot.connection.state === ConnectionState.Connected);
+        expect(sharer.snapshot().prompt).toBeNull();
+
+        await viewer.disconnect();
+        await this.waitFor(viewer, (snapshot) => snapshot.connection.state === ConnectionState.Idle);
+        await this.waitFor(sharer, (snapshot) => snapshot.connection.state === ConnectionState.Idle);
+
+        await viewer.connectManual({
+          endpoint: `127.0.0.1:${sharerPort ?? 0}`,
+          intent: ConnectionIntent.ShareLocal
+        });
+        const oppositeIntentRequested = await this.waitFor(
           sharer,
-          (snapshot) => snapshot.prompt?.kind === PromptKind.Connection
+          (snapshot) => snapshot.prompt?.mode === ConsentPromptMode.EnterVerificationCode
         );
-        expect(returningRequester.prompt?.mode).toBe(ConsentPromptMode.WaitingForPeer);
-        expect(returningRequested.prompt?.mode).toBe(ConsentPromptMode.EnterVerificationCode);
         await sharer.respondToPrompt({
-          promptId: returningRequested.prompt?.promptId ?? '',
+          promptId: oppositeIntentRequested.prompt?.promptId ?? '',
+          accepted: false,
+          verificationCode: null
+        });
+        await this.waitFor(viewer, (snapshot) => snapshot.connection.state === ConnectionState.Idle);
+        await this.waitFor(sharer, (snapshot) => snapshot.connection.state === ConnectionState.Idle);
+
+        await sharer.connectManual({
+          endpoint: `127.0.0.1:${viewerPort ?? 0}`,
+          intent: ConnectionIntent.ViewRemote
+        });
+        const reverseRequester = await this.waitFor(
+          sharer,
+          (snapshot) => snapshot.prompt?.mode === ConsentPromptMode.WaitingForPeer
+        );
+        const reverseRequested = await this.waitFor(
+          viewer,
+          (snapshot) => snapshot.prompt?.mode === ConsentPromptMode.EnterVerificationCode
+        );
+        await viewer.respondToPrompt({
+          promptId: reverseRequested.prompt?.promptId ?? '',
           accepted: true,
-          verificationCode: returningRequester.prompt?.verificationCode ?? ''
+          verificationCode: reverseRequester.prompt?.verificationCode ?? ''
         });
         await this.waitFor(viewer, (snapshot) => snapshot.connection.state === ConnectionState.Connected);
         await this.waitFor(sharer, (snapshot) => snapshot.connection.state === ConnectionState.Connected);
+        expect(viewer.snapshot().connection.peer?.paired).toBe(true);
+        expect(sharer.snapshot().connection.peer?.paired).toBe(false);
 
-        await viewer.disconnect();
+        await sharer.disconnect();
+        await this.waitFor(viewer, (snapshot) => snapshot.connection.state === ConnectionState.Idle);
+        await this.waitFor(sharer, (snapshot) => snapshot.connection.state === ConnectionState.Idle);
+        expect(viewer.snapshot().discoveredPeers.some((peer) => peer.deviceId === sharerDeviceId)).toBe(true);
+
+        await viewer.clearTrust({ deviceId: sharerDeviceId });
+        expect(viewer.snapshot().discoveredPeers.some((peer) => peer.deviceId === sharerDeviceId)).toBe(false);
+        await sharer.connectManual({
+          endpoint: `127.0.0.1:${viewerPort ?? 0}`,
+          intent: ConnectionIntent.ViewRemote
+        });
+        const afterClearRequested = await this.waitFor(
+          viewer,
+          (snapshot) => snapshot.prompt?.mode === ConsentPromptMode.EnterVerificationCode
+        );
+        await viewer.respondToPrompt({
+          promptId: afterClearRequested.prompt?.promptId ?? '',
+          accepted: false,
+          verificationCode: null
+        });
         await this.waitFor(viewer, (snapshot) => snapshot.connection.state === ConnectionState.Idle);
         await this.waitFor(sharer, (snapshot) => snapshot.connection.state === ConnectionState.Idle);
       });
 
       test('detects a peer going offline while waiting for code confirmation', async () => {
-        const requester = await this.createFacade();
+        const requester = await this.createFacade(true);
         const requested = await this.createFacade();
         await Promise.all([requester.start(), requested.start()]);
         const requestedPort = requested.snapshot().localEndpoint?.controlPort;
@@ -151,6 +214,11 @@ class ConnectivityTestHarness {
         );
         expect(failed.prompt).toBeNull();
         expect(failed.connection.error).not.toBeNull();
+        const diagnosticResponse = await fetch(`${requester.snapshot().diagnostics?.baseUrl ?? ''}/snapshot`);
+        const diagnosticRecords = await diagnosticResponse.json() as CollectedDiagnosticRecord[];
+        expect(diagnosticRecords.some((entry) => (
+          entry.record.event === 'connection.closed' && entry.record.severity === 'error'
+        ))).toBe(true);
 
         await requester.disconnect();
         expect(requester.snapshot().connection.state).toBe(ConnectionState.Idle);
@@ -158,14 +226,14 @@ class ConnectivityTestHarness {
     });
   }
 
-  private async createFacade(): Promise<ConnectivityFacade> {
+  private async createFacade(enableDiagnostics: boolean = false): Promise<ConnectivityFacade> {
     const directory = await mkdtemp(join(tmpdir(), 'istream-test-'));
     this.#temporaryDirectories.push(directory);
     const facade = new ConnectivityFacade({
       userDataPath: directory,
       enableDiscovery: false,
       preferredControlPort: 0,
-      enableLocalDiagnosticsServer: false,
+      enableLocalDiagnosticsServer: enableDiagnostics,
       preferredDiagnosticsPort: 0
     });
     this.#facades.push(facade);

@@ -46,8 +46,11 @@ export interface DiscoveredPeerDescriptor {
   readonly deviceId: string;
   readonly displayName: string;
   readonly address: string;
-  readonly controlPort: number;
+  readonly controlPort: number | null;
   readonly paired: boolean;
+  readonly online: boolean;
+  readonly trustExpiresAt: number | null;
+  readonly trustedIntents: readonly ConnectionIntent[];
   readonly lastSeenAt: number;
 }
 
@@ -102,9 +105,14 @@ export interface ConsentDecisionRequest {
   readonly verificationCode: string | null;
 }
 
+export interface ClearTrustRequest {
+  readonly deviceId: string;
+}
+
 export interface ConnectivityApi {
   getSnapshot(): Promise<ConnectivitySnapshot>;
   refreshDiscovery(): Promise<void>;
+  clearTrust(request: ClearTrustRequest): Promise<void>;
   connectDiscovered(request: DiscoveredConnectionRequest): Promise<void>;
   connectManual(request: ManualConnectionRequest): Promise<void>;
   respondToPrompt(request: ConsentDecisionRequest): Promise<void>;
@@ -125,5 +133,6 @@ export class ConnectivityDefaults {
   static readonly peerExpiryMs: number = 7000;
   static readonly keepAliveIntervalMs: number = 2000;
   static readonly connectionTimeoutMs: number = 5000;
+  static readonly trustDurationMs: number = 30 * 24 * 60 * 60 * 1000;
 }
 import type { DiagnosticsEndpointDescriptor } from './DiagnosticContracts';

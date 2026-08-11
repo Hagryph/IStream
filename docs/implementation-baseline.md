@@ -9,11 +9,13 @@ The secure control path is fully operational for the baseline:
 1. The TCP initiator sends a signed device identity plus ephemeral X25519 key.
 2. The receiver validates it and returns its own signed identity and ephemeral key.
 3. Both derive directional AES-256-GCM keys and the same six-digit short authentication string without exposing it to the requested PC's renderer.
-4. The requester displays the code and waits. The requested PC must enter that code to approve; a successful identity is pinned atomically. The same fresh-code confirmation is required for later sessions with a pinned identity.
+4. The requester displays the code and waits. The requested PC enters it once to grant that requester and stream intent 30 days of inbound trust. Matching sessions authenticate the pinned key and reconnect without a code; a different requester direction or stream intent, expiry, or X-based clearing requires a new code.
 5. Encrypted counters prevent replay; encrypted ping/pong frames report RTT and detect interruption during both confirmation and an active connection.
 6. Direction reversal is an encrypted request and is applied only after remote consent.
 
 Discovery is link-local in behavior: multicast TTL is one, beacons contain no secrets, peers expire after seven seconds without a beacon, and Refresh clears stale entries then sends an immediate multicast probe. Manual destinations must be RFC1918 IPv4 or loopback. An identity spoof in a discovery beacon cannot complete the signed handshake. The optional firewall script narrows inbound access to the Windows Private profile and local subnet.
+
+Trusted identities remain in the list while offline, using a grey disabled row. Legacy symmetric pairing records are discarded during migration because they cannot prove which requester direction was authorized.
 
 The baseline configuration is usable and persisted. It defaults to:
 
@@ -37,7 +39,7 @@ The local diagnostics reader is an HTTP service bound exclusively to `127.0.0.1`
 - `/peer/snapshot` to request the connected peer's locally retained records on demand
 - `/health` for a minimal reader health check
 
-An on-demand peer request is an authenticated encrypted control message. The peer selects only locally originated diagnostic records and returns them in bounded chunks. The default request permits 1,000 records, covering the full ten-minute window at the baseline one-second rate; an explicit request can ask for up to 5,000. Each record is schema-validated before acceptance. Late replies are ignored, oversized batches are rejected, and a request times out after ten seconds.
+An on-demand peer request is an authenticated encrypted control message. The peer selects only locally originated diagnostic records and returns them in bounded chunks. The default request permits 1,000 records, covering the full ten-minute window at the baseline one-second rate; an explicit request can ask for up to 5,000. Each record is schema-validated before acceptance. Envelopes allow the bounded ciphertext size required by ten-record batches, complete lines are size-checked independently, and session closure reasons are recorded before sampling stops. Late replies are ignored, oversized individual frames are rejected, and a request times out after ten seconds.
 
 The loopback reader deliberately has no LAN binding or CORS access. Diagnostic producers are prohibited from emitting input contents, pairing codes, private keys, derived session keys, authentication material, or decoded media contents.
 

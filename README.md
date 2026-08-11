@@ -7,9 +7,10 @@ IStream is a Windows 10 private-LAN remote gaming/desktop streaming project. Thi
 - One application can initiate or receive connections, with **View remote PC** and **Share this PC** directions.
 - UDP multicast discovery on `239.255.77.77:47777`, immediate refresh/probe, seven-second offline expiry, and manual private-IPv4 connection.
 - TCP control service on `47778`, automatically trying through `47788` if needed.
-- Persistent Ed25519 device identity and pinned paired-peer public keys.
-- Ephemeral X25519 session key agreement, mutual signed handshake, AES-256-GCM control messages, monotonic replay counters, and a fresh six-digit verification code for every connection.
-- The requester waits with the code; the requested PC must enter it to approve. Encrypted health checks also run while approval is pending so an offline peer closes the request automatically.
+- Persistent Ed25519 device identity and requester/stream-direction-specific, 30-day inbound trust with an X control to clear it immediately.
+- Ephemeral X25519 session key agreement, mutual signed handshake, AES-256-GCM control messages, monotonic replay counters, and a six-digit verification code for a new, cleared, expired, or opposite-direction requester.
+- The requester waits with the code; the requested PC must enter it once to grant that requester and stream direction 30 days of trust. The same requester and direction reconnect without a code; changing requester or stream direction needs a new code, while in-session reversal requires an explicit prompt on the other PC.
+- Trusted computers remain visible in grey while offline; encrypted health checks run during pending approval so an offline peer closes the request automatically.
 - Atomically persisted and validated streaming policy settings.
 - Continuous per-instance diagnostic recording with a rolling ten-minute in-memory history and a 10,000-record burst guard.
 - Loopback-only NDJSON diagnostics for command-line inspection and encrypted, on-demand peer-history retrieval.
@@ -38,7 +39,7 @@ npm.cmd test
 npm.cmd run build
 ```
 
-The integration suite runs two independent services, rejects a wrong code, completes encrypted pairing and a trusted reconnection, verifies complementary roles, reverses direction after consent, detects an offline peer while waiting, and disconnects. The production build is written to `out/`.
+The integration suite runs two independent services, rejects a wrong code, verifies directional trusted reconnection and opposite-direction code entry, clears trust, retains offline trusted peers, reverses direction after remote consent, transfers large encrypted diagnostic batches, records failures, and detects an offline peer while waiting. The production build is written to `out/`.
 
 ## Command-line diagnostics
 
@@ -59,6 +60,8 @@ curl.exe "http://127.0.0.1:47800/peer/snapshot?limit=25"
 ```
 
 Each instance records its own one-second connection samples locally while connected and retains the latest ten minutes. The permanent encrypted control line carries a diagnostic request only on demand, then returns records in bounded chunks. A default peer pull allows 1,000 records, enough for the complete ten-minute window at the baseline one-second sampling rate. This prevents background diagnostic history from competing continuously with game traffic. Retrieved peer records are also published into the requester's local `/stream`.
+
+Encrypted diagnostic envelopes accept the bounded multi-record batches produced by the protocol, and every session closure records its reason and previous state before sampling stops. This keeps a failed or closed connection from leaving a misleading final `connected` record.
 
 The diagnostic schema includes state, direction/role, RTT, connection age, health-check backlog, control frame/byte counts, encrypted-message counts, and origin/time metadata. Future media and input modules will publish bitrate, FPS, resolution, encoder/decode latency, jitter, loss, dropped/frozen frames, and input safety-state records through the same hub.
 

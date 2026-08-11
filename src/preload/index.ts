@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import type {
+  ClearTrustRequest,
   ConnectivitySnapshot,
   ConnectivitySnapshotListener,
   ConsentDecisionRequest,
@@ -14,6 +15,8 @@ export class PreloadConnectivityBridge {
     const api: IStreamApi = {
       getSnapshot: () => ipcRenderer.invoke(IpcChannels.connectivityGetSnapshot) as Promise<ConnectivitySnapshot>,
       refreshDiscovery: () => ipcRenderer.invoke(IpcChannels.connectivityRefreshDiscovery) as Promise<void>,
+      clearTrust: (request: ClearTrustRequest) =>
+        ipcRenderer.invoke(IpcChannels.connectivityClearTrust, request) as Promise<void>,
       connectDiscovered: (request: DiscoveredConnectionRequest) =>
         ipcRenderer.invoke(IpcChannels.connectivityConnectDiscovered, request) as Promise<void>,
       connectManual: (request: ManualConnectionRequest) =>

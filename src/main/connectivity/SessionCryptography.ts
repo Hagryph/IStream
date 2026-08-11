@@ -15,6 +15,7 @@ import { DeviceIdentity } from './DeviceIdentity';
 import { DiagnosticDefaults } from '../../shared/DiagnosticContracts';
 import { DiagnosticRecordValidator } from '../diagnostics/DiagnosticRecordValidator';
 import {
+  ProtocolLimits,
   SecureMessageKind,
   WireMessageKind,
   type ClientHelloMessage,
@@ -303,8 +304,8 @@ export class ProtocolValidator {
       candidate.kind !== WireMessageKind.Secure ||
       typeof candidate.counter !== 'string' ||
       !/^\d{1,20}$/.test(candidate.counter) ||
-      !this.base64(candidate.ciphertext) ||
-      !this.base64(candidate.authTag)
+      !this.base64(candidate.ciphertext, ProtocolLimits.maximumFrameBytes) ||
+      !this.base64(candidate.authTag, 64)
     ) {
       throw new Error('Invalid secure control envelope.');
     }
@@ -397,7 +398,7 @@ export class ProtocolValidator {
     return typeof value === 'string' && value.length > 0 && value.length <= maximumLength;
   }
 
-  private static base64(value: unknown): value is string {
-    return typeof value === 'string' && value.length > 0 && value.length <= 4096 && /^[A-Za-z0-9+/]+={0,2}$/.test(value);
+  private static base64(value: unknown, maximumLength: number = 4096): value is string {
+    return typeof value === 'string' && value.length > 0 && value.length <= maximumLength && /^[A-Za-z0-9+/]+={0,2}$/.test(value);
   }
 }

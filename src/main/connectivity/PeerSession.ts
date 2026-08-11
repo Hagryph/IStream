@@ -385,18 +385,24 @@ export class PeerSession {
     if (this.#verificationCode === null) {
       throw new Error('The secure connection verification code is unavailable.');
     }
-    this.#prompt = {
-      promptId: randomUUID(),
-      kind: knownPeer ? PromptKind.Connection : PromptKind.Pairing,
-      mode: this.#initiator
-        ? ConsentPromptMode.WaitingForPeer
-        : ConsentPromptMode.EnterVerificationCode,
-      peerName: this.#peer.displayName,
-      verificationCode: this.#initiator ? this.#verificationCode : null,
-      intent: this.#intent,
-      knownPeer
-    };
     this.startKeepAlive();
+    if (!this.#initiator && knownPeer) {
+      this.#prompt = null;
+      this.#localConsent = true;
+      this.sendSecure({ kind: SecureMessageKind.ConsentDecision, accepted: true });
+    } else {
+      this.#prompt = {
+        promptId: randomUUID(),
+        kind: PromptKind.Pairing,
+        mode: this.#initiator
+          ? ConsentPromptMode.WaitingForPeer
+          : ConsentPromptMode.EnterVerificationCode,
+        peerName: this.#peer.displayName,
+        verificationCode: this.#initiator ? this.#verificationCode : null,
+        intent: this.#intent,
+        knownPeer: false
+      };
+    }
     if (this.#initiator) {
       this.#localConsent = true;
       this.sendSecure({ kind: SecureMessageKind.ConsentDecision, accepted: true });
@@ -418,16 +424,22 @@ export class PeerSession {
   }
 
   private async tryEstablishConnection(): Promise<void> {
-    if (this.#localConsent !== true || this.#remoteConsent !== true || this.#peer === null || this.#peerPublicKey === null) {
+    if (
+      this.#localConsent !== true ||
+      this.#remoteConsent !== true ||
+      this.#peer === null ||
+      this.#peerPublicKey === null ||
+      this.#intent === null
+    ) {
       return;
     }
-    if (!this.#peer.paired) {
-      await this.#pairedPeerStore.remember({
+    if (!this.#initiator && !this.#peer.paired) {
+      await this.#pairedPeerStore.rememberInbound({
+        intent: this.#intent,
         deviceId: this.#peer.deviceId,
         displayName: this.#peer.displayName,
         publicKeyDer: this.#peerPublicKey,
-        lastAddress: this.#remoteAddress,
-        pairedAt: Date.now()
+        lastAddress: this.#remoteAddress
       });
       this.#peer = { ...this.#peer, paired: true };
     }
@@ -610,7 +622,11 @@ export class PeerSession {
       deviceId,
       displayName,
       address: this.#remoteAddress,
-      paired: this.#pairedPeerStore.isKnown(deviceId, publicKey)
+      paired: !this.#initiator && this.#intent !== null && this.#pairedPeerStore.isTrusted(
+        deviceId,
+        publicKey,
+        this.#intent
+      )
     };
   }
 
@@ -676,6 +692,7 @@ export class PeerSession {
       return;
     }
     this.#intentionalClose = true;
+    this.recordClosureDiagnostics(reason, expected);
     this.clearTimers();
     this.#prompt = null;
     this.#role = LocalMediaRole.None;
@@ -683,6 +700,26 @@ export class PeerSession {
     this.#error = expected ? null : reason;
     this.#transport.close();
     this.notifyChanged();
+  }
+
+  private recordClosureDiagnostics(reason: string, expected: boolean): void {
+    this.#diagnosticSequence += 1;
+    this.#diagnosticRecordListener({
+      schemaVersion: DiagnosticDefaults.schemaVersion,
+      sequence: this.#diagnosticSequence,
+      timestamp: Date.now(),
+      originDeviceId: this.#identity.deviceId,
+      originDisplayName: this.#identity.displayName,
+      category: expected ? DiagnosticCategory.Lifecycle : DiagnosticCategory.Error,
+      severity: expected ? DiagnosticSeverity.Information : DiagnosticSeverity.Error,
+      event: 'connection.closed',
+      values: {
+        reason,
+        expected,
+        previousState: this.connectionState(),
+        remoteAddress: this.#remoteAddress
+      }
+    }, DiagnosticEventSource.Local);
   }
 
   private notifyChanged(): void {

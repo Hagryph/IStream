@@ -3,9 +3,12 @@ import {
   ConnectivityDefaults,
   LocalMediaRole,
   ServiceState,
+  type ActiveConnectionDescriptor,
+  type ClearTrustRequest,
   type ConnectivitySnapshot,
   type ConsentDecisionRequest,
   type DiscoveredConnectionRequest,
+  type DiscoveredPeerDescriptor,
   type ManualConnectionRequest
 } from '../../shared/ConnectivityContracts';
 import { ConnectionManager } from './ConnectionManager';
@@ -116,10 +119,7 @@ export class ConnectivityFacade {
         controlPort: this.#controlServer.port,
         addresses: this.#networkInterfaceProvider.privateIpv4Addresses()
       },
-      discoveredPeers: (this.#discoveryService?.peers() ?? []).map((peer) => ({
-        ...peer,
-        paired: this.#pairedPeerStore?.get(peer.deviceId) !== null
-      })),
+      discoveredPeers: this.peerDescriptors(connection),
       connection: connection.state === ConnectionState.Idle && this.#lastOperationError !== null
         ? { ...connection, state: ConnectionState.Failed, error: this.#lastOperationError }
         : connection,
@@ -155,11 +155,23 @@ export class ConnectivityFacade {
     });
   }
 
+  public async clearTrust(request: ClearTrustRequest): Promise<void> {
+    await this.performOperation(async () => {
+      if (!/^[a-f0-9]{32}$/i.test(request.deviceId)) {
+        throw new Error('The trusted device identifier is invalid.');
+      }
+      await this.requiredTrustStore().clear(request.deviceId);
+    });
+  }
+
   public async connectDiscovered(request: DiscoveredConnectionRequest): Promise<void> {
     await this.performOperation(async () => {
       const peer = this.#discoveryService?.peers().find((candidate) => candidate.deviceId === request.deviceId);
       if (peer === undefined) {
         throw new Error('That discovered peer is no longer available.');
+      }
+      if (peer.controlPort === null) {
+        throw new Error('That trusted peer is offline.');
       }
       await this.requiredManager().connect(
         { host: peer.address, port: peer.controlPort },
@@ -196,6 +208,57 @@ export class ConnectivityFacade {
       throw new Error('Connectivity service is not ready.');
     }
     return this.#connectionManager;
+  }
+
+  private requiredTrustStore(): PairedPeerStore {
+    if (this.#pairedPeerStore === null || this.#serviceState !== ServiceState.Ready) {
+      throw new Error('The trust store is not ready.');
+    }
+    return this.#pairedPeerStore;
+  }
+
+  private peerDescriptors(connection: ActiveConnectionDescriptor): readonly DiscoveredPeerDescriptor[] {
+    const livePeers = this.#discoveryService?.peers() ?? [];
+    const descriptors = new Map<string, DiscoveredPeerDescriptor>();
+    for (const peer of livePeers) {
+      const trust = this.#pairedPeerStore?.getAny(peer.deviceId) ?? null;
+      descriptors.set(peer.deviceId, {
+        ...peer,
+        paired: trust !== null,
+        online: true,
+        trustExpiresAt: trust?.expiresAt ?? null,
+        trustedIntents: this.#pairedPeerStore?.records()
+          .filter((record) => record.deviceId === peer.deviceId)
+          .map((record) => record.intent) ?? []
+      });
+    }
+    const retainedTrust = [...(this.#pairedPeerStore?.records() ?? [])]
+      .sort((left, right) => right.expiresAt - left.expiresAt);
+    for (const trust of retainedTrust) {
+      if (descriptors.has(trust.deviceId)) {
+        continue;
+      }
+      const active = connection.peer?.deviceId === trust.deviceId && connection.state === ConnectionState.Connected;
+      descriptors.set(trust.deviceId, {
+        deviceId: trust.deviceId,
+        displayName: trust.displayName,
+        address: active ? connection.peer?.address ?? trust.lastAddress : trust.lastAddress,
+        controlPort: null,
+        paired: true,
+        online: active,
+        trustExpiresAt: trust.expiresAt,
+        trustedIntents: retainedTrust
+          .filter((record) => record.deviceId === trust.deviceId)
+          .map((record) => record.intent),
+        lastSeenAt: active ? Date.now() : trust.trustedAt
+      });
+    }
+    return [...descriptors.values()].sort((left, right) => {
+      if (left.online !== right.online) {
+        return left.online ? -1 : 1;
+      }
+      return left.displayName.localeCompare(right.displayName);
+    });
   }
 
   private async performOperation(operation: () => Promise<void>): Promise<void> {

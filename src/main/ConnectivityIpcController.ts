@@ -1,5 +1,6 @@
 import { BrowserWindow, ipcMain, type IpcMainInvokeEvent } from 'electron';
 import type {
+  ClearTrustRequest,
   ConsentDecisionRequest,
   DiscoveredConnectionRequest,
   ManualConnectionRequest
@@ -21,6 +22,10 @@ export class ConnectivityIpcController {
   public install(): void {
     ipcMain.handle(IpcChannels.connectivityGetSnapshot, () => this.#facade.snapshot());
     ipcMain.handle(IpcChannels.connectivityRefreshDiscovery, () => this.#facade.refreshDiscovery());
+    ipcMain.handle(
+      IpcChannels.connectivityClearTrust,
+      (_event: IpcMainInvokeEvent, request: ClearTrustRequest) => this.#facade.clearTrust(request)
+    );
     ipcMain.handle(
       IpcChannels.connectivityConnectDiscovered,
       (_event: IpcMainInvokeEvent, request: DiscoveredConnectionRequest) => this.#facade.connectDiscovered(request)
@@ -52,6 +57,7 @@ export class ConnectivityIpcController {
   public uninstall(): void {
     ipcMain.removeHandler(IpcChannels.connectivityGetSnapshot);
     ipcMain.removeHandler(IpcChannels.connectivityRefreshDiscovery);
+    ipcMain.removeHandler(IpcChannels.connectivityClearTrust);
     ipcMain.removeHandler(IpcChannels.connectivityConnectDiscovered);
     ipcMain.removeHandler(IpcChannels.connectivityConnectManual);
     ipcMain.removeHandler(IpcChannels.connectivityRespondPrompt);

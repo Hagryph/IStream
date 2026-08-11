@@ -9,6 +9,8 @@ import {
 } from '../src/shared/DiagnosticContracts';
 import { DiagnosticsHub } from '../src/main/diagnostics/DiagnosticsHub';
 import { DiagnosticsHttpServer } from '../src/main/diagnostics/DiagnosticsHttpServer';
+import { ProtocolValidator, SecureMessageCipher } from '../src/main/connectivity/SessionCryptography';
+import { SecureMessageKind } from '../src/main/connectivity/ProtocolContracts';
 
 class DiagnosticsTestSuite {
   readonly #servers: DiagnosticsHttpServer[] = [];
@@ -76,6 +78,35 @@ class DiagnosticsTestSuite {
           'burst.second',
           'burst.third'
         ]);
+      });
+
+      test('accepts encrypted ten-record diagnostic batches larger than the old envelope limit', () => {
+        const sharedSecret = Buffer.alloc(32, 7);
+        const sessionHash = Buffer.alloc(32, 9);
+        const sender = new SecureMessageCipher('diagnostic-batch-test', sharedSecret, sessionHash, true);
+        const receiver = new SecureMessageCipher('diagnostic-batch-test', sharedSecret, sessionHash, false);
+        const records = Array.from({ length: DiagnosticDefaults.peerBatchRecordCount }, (_value, index) => ({
+          ...this.record(index + 1, 'connection.sample'),
+          values: {
+            roundTripTimeMs: 3,
+            controlBytesSent: 25_000,
+            controlBytesReceived: 25_100,
+            details: 'x'.repeat(240)
+          }
+        }));
+        const envelope = sender.encrypt({
+          kind: SecureMessageKind.DiagnosticsBatch,
+          requestId: '00000000-0000-0000-0000-000000000000',
+          records,
+          complete: true
+        });
+
+        expect(envelope.ciphertext.length).toBeGreaterThan(4096);
+        const decrypted = receiver.decrypt(ProtocolValidator.secureEnvelope(envelope));
+        expect(decrypted.kind).toBe(SecureMessageKind.DiagnosticsBatch);
+        if (decrypted.kind === SecureMessageKind.DiagnosticsBatch) {
+          expect(decrypted.records).toHaveLength(DiagnosticDefaults.peerBatchRecordCount);
+        }
       });
     });
   }

@@ -82,8 +82,10 @@ export class App extends Component<Record<string, never>, AppState> {
               refreshDisabled={
                 this.state.busy || this.state.snapshot.serviceState !== ServiceState.Ready
               }
+              clearDisabled={this.state.busy}
               onConnect={(deviceId, intent) => this.connectDiscovered(deviceId, intent)}
               onRefresh={() => this.refreshDiscovery()}
+              onClearTrust={(deviceId) => this.clearTrust(deviceId)}
             />
             <ManualConnectionPanel
               endpoint={this.state.manualEndpoint}
@@ -135,6 +137,10 @@ export class App extends Component<Record<string, never>, AppState> {
 
   private refreshDiscovery(): void {
     void this.perform(() => window.istream.refreshDiscovery());
+  }
+
+  private clearTrust(deviceId: string): void {
+    void this.perform(() => window.istream.clearTrust({ deviceId }));
   }
 
   private saveConfiguration(): void {

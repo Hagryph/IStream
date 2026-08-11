@@ -210,12 +210,18 @@ export class DiscoveryService {
       return;
     }
     const beacon = packet;
+    const trust = this.#pairedPeerStore.getAny(beacon.deviceId);
     const peer: DiscoveredPeerDescriptor = {
       deviceId: beacon.deviceId,
       displayName: beacon.displayName,
       address: remoteInfo.address,
       controlPort: beacon.controlPort,
-      paired: this.#pairedPeerStore.get(beacon.deviceId) !== null,
+      paired: trust !== null,
+      online: true,
+      trustExpiresAt: trust?.expiresAt ?? null,
+      trustedIntents: this.#pairedPeerStore.records()
+        .filter((record) => record.deviceId === beacon.deviceId)
+        .map((record) => record.intent),
       lastSeenAt: Date.now()
     };
     this.#peers.set(peer.deviceId, peer);

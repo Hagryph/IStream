@@ -5,8 +5,10 @@ export interface PeerListProps {
   readonly peers: readonly DiscoveredPeerDescriptor[];
   readonly disabled: boolean;
   readonly refreshDisabled: boolean;
+  readonly clearDisabled: boolean;
   readonly onConnect: (deviceId: string, intent: ConnectionIntent) => void;
   readonly onRefresh: () => void;
+  readonly onClearTrust: (deviceId: string) => void;
 }
 
 export class PeerList extends Component<PeerListProps> {
@@ -47,28 +49,40 @@ export class PeerList extends Component<PeerListProps> {
     return (
       <div className="peer-list">
         {this.props.peers.map((peer) => (
-          <article className="peer-row" key={peer.deviceId}>
+          <article className={`peer-row ${peer.online ? '' : 'offline'}`} key={peer.deviceId}>
             <div className="peer-icon">PC</div>
             <div className="peer-copy">
               <strong>{peer.displayName}</strong>
-              <span>{peer.address}:{peer.controlPort}</span>
+              <span>{peer.online && peer.controlPort !== null ? `${peer.address}:${peer.controlPort}` : `Offline - last address ${peer.address}`}</span>
             </div>
+            <span className={`peer-presence ${peer.online ? 'online' : ''}`}>{peer.online ? 'Online' : 'Offline'}</span>
             <span
               className={`trust-badge ${peer.paired ? 'trusted' : ''}`}
-              title={peer.paired ? 'Stored trusted identity; this does not indicate an active connection.' : 'Not paired yet'}
+              title={this.trustTitle(peer.trustExpiresAt, peer.trustedIntents)}
             >
               {peer.paired ? 'Trusted' : 'New'}
             </span>
+            {peer.paired ? (
+              <button
+                className="trust-clear"
+                disabled={this.props.clearDisabled}
+                title="Clear this one-way trust"
+                aria-label={`Clear trust for ${peer.displayName}`}
+                onClick={() => this.props.onClearTrust(peer.deviceId)}
+              >
+                X
+              </button>
+            ) : null}
             <button
               className="button small primary"
-              disabled={this.props.disabled}
+              disabled={this.props.disabled || !peer.online || peer.controlPort === null}
               onClick={() => this.props.onConnect(peer.deviceId, ConnectionIntent.ViewRemote)}
             >
               View
             </button>
             <button
               className="button small secondary"
-              disabled={this.props.disabled}
+              disabled={this.props.disabled || !peer.online || peer.controlPort === null}
               onClick={() => this.props.onConnect(peer.deviceId, ConnectionIntent.ShareLocal)}
             >
               Share
@@ -77,5 +91,15 @@ export class PeerList extends Component<PeerListProps> {
         ))}
       </div>
     );
+  }
+
+  private trustTitle(expiresAt: number | null, intents: readonly ConnectionIntent[]): string {
+    if (expiresAt === null) {
+      return 'Not trusted yet';
+    }
+    const scope = intents.map((intent) => (
+      intent === ConnectionIntent.ViewRemote ? 'view this PC' : 'share its PC'
+    )).join(' and ');
+    return `May request: ${scope || 'trusted connection'}. Expires ${new Date(expiresAt).toLocaleString()}`;
   }
 }

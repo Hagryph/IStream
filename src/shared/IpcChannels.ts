@@ -1,6 +1,7 @@
 export class IpcChannels {
   static readonly connectivityGetSnapshot: string = 'connectivity:get-snapshot';
   static readonly connectivityRefreshDiscovery: string = 'connectivity:refresh-discovery';
+  static readonly connectivityClearTrust: string = 'connectivity:clear-trust';
   static readonly connectivityConnectDiscovered: string = 'connectivity:connect-discovered';
   static readonly connectivityConnectManual: string = 'connectivity:connect-manual';
   static readonly connectivityRespondPrompt: string = 'connectivity:respond-prompt';
