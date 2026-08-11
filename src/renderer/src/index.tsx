@@ -1,6 +1,7 @@
 import { Component, StrictMode, type ErrorInfo } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
+import { UserFacingError } from './UserFacingError';
 import './styles.css';
 
 export interface RendererFailurePanelProps {
@@ -31,7 +32,7 @@ export class RendererErrorBoundary extends Component<React.PropsWithChildren, Re
   }
 
   public static getDerivedStateFromError(error: Error): RendererErrorBoundaryState {
-    return { detail: error.message || 'An unexpected renderer error occurred.' };
+    return { detail: UserFacingError.from(error) };
   }
 
   public override componentDidCatch(error: Error, information: ErrorInfo): void {
@@ -53,7 +54,7 @@ export class RendererBootstrap {
     }
     if (window.istream === undefined) {
       createRoot(rootElement).render(
-        <RendererFailurePanel detail="The secure preload bridge did not initialize." />
+        <RendererFailurePanel detail="The IStream interface could not start. Restart the app; reinstall the latest version if it happens again." />
       );
       return;
     }

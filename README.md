@@ -15,6 +15,7 @@ IStream is a Windows 10 private-LAN remote gaming/desktop streaming project. Thi
 - Continuous per-instance diagnostic recording with a rolling ten-minute in-memory history and a 10,000-record burst guard.
 - Loopback-only NDJSON diagnostics for command-line inspection and encrypted, on-demand peer-history retrieval.
 - Electron context isolation and a narrow preload API. Renderer code has no Node.js or socket access.
+- Centralized plain-language UI errors for pairing codes, connectivity, discovery, diagnostics, settings, and startup; technical causes remain available to local diagnostics and developer logs.
 - Automated enforcement that TypeScript/TSX source has no module-scope functions or variables.
 
 ## Run it
@@ -39,7 +40,7 @@ npm.cmd test
 npm.cmd run build
 ```
 
-The integration suite runs two independent services, rejects a wrong code, verifies directional trusted reconnection and opposite-direction code entry, clears trust, retains offline trusted peers, reverses direction after remote consent, transfers large encrypted diagnostic batches, records failures, and detects an offline peer while waiting. The production build is written to `out/`.
+The integration suite runs two independent services, rejects a wrong code, verifies directional trusted reconnection and opposite-direction code entry, clears trust, retains offline trusted peers, reverses direction after remote consent, transfers large encrypted diagnostic batches, records failures, detects an offline peer while waiting, and verifies that technical failures are converted to actionable UI messages. The production build is written to `out/`.
 
 ## Command-line diagnostics
 

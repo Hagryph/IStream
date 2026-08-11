@@ -17,6 +17,8 @@ Discovery is link-local in behavior: multicast TTL is one, beacons contain no se
 
 Trusted identities remain in the list while offline, using a grey disabled row. Legacy symmetric pairing records are discarded during migration because they cannot prove which requester direction was authorized.
 
+The renderer passes every operation and connection failure through one presentation layer. Known pairing, network, discovery, diagnostics, settings, and startup failures become short actionable guidance; unknown exceptions use a safe generic message instead of exposing stack, IPC, socket, or protocol details. Raw closure reasons remain in the local diagnostic record for troubleshooting.
+
 The baseline configuration is usable and persisted. It defaults to:
 
 - Gaming preset

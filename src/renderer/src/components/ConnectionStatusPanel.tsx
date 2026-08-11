@@ -38,7 +38,7 @@ export class ConnectionStatusPanel extends Component<ConnectionStatusPanelProps>
             <small>Encrypted health-check round trip</small>
           </div>
         </div>
-        {this.props.connection.error === null ? null : <div className="error-banner">{this.props.connection.error}</div>}
+        {this.props.connection.error === null ? null : <div className="error-banner" role="alert">{this.props.connection.error}</div>}
         <div className="button-row">
           <button className="button secondary" disabled={!connected || this.props.busy} onClick={this.props.onReverse}>
             Reverse direction

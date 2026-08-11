@@ -44,7 +44,7 @@ export class ConsentDialog extends Component<ConsentDialogProps, ConsentDialogSt
             <span>Peer</span><strong>{this.props.prompt.peerName}</strong>
             <span>Trust</span><strong>{this.props.prompt.knownPeer ? 'Previously paired identity' : 'New device identity'}</strong>
           </div>
-          {this.props.error === null ? null : <div className="dialog-error">{this.props.error}</div>}
+          {this.props.error === null ? null : <div className="dialog-error" role="alert">{this.props.error}</div>}
           {this.renderActions()}
         </section>
       </div>

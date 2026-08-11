@@ -17,6 +17,7 @@ import { ManualConnectionPanel } from './components/ManualConnectionPanel';
 import { PeerList } from './components/PeerList';
 import { StreamingPolicyPanel } from './components/StreamingPolicyPanel';
 import { DiagnosticsPanel } from './components/DiagnosticsPanel';
+import { UserFacingError } from './UserFacingError';
 
 export interface AppState {
   readonly snapshot: ConnectivitySnapshot;
@@ -68,9 +69,22 @@ export class App extends Component<Record<string, never>, AppState> {
           endpoint={this.state.snapshot.localEndpoint}
         />
         <main className="content">
-          {this.state.notice === null ? null : <div className="notice" onClick={() => this.setState({ notice: null })}>{this.state.notice}</div>}
+          {this.state.notice === null ? null : (
+            <div
+              className="notice"
+              role="alert"
+              aria-live="polite"
+              title="Click to dismiss"
+              onClick={() => this.setState({ notice: null })}
+            >
+              {this.state.notice}
+            </div>
+          )}
           <ConnectionStatusPanel
-            connection={this.state.snapshot.connection}
+            connection={{
+              ...this.state.snapshot.connection,
+              error: UserFacingError.fromNullable(this.state.snapshot.connection.error)
+            }}
             busy={this.state.busy}
             onReverse={() => this.perform(() => window.istream.requestReversal())}
             onDisconnect={() => this.perform(() => window.istream.disconnect())}
@@ -162,7 +176,7 @@ export class App extends Component<Record<string, never>, AppState> {
   }
 
   private setNotice(error: unknown): void {
-    this.setState({ notice: error instanceof Error ? error.message : String(error) });
+    this.setState({ notice: UserFacingError.from(error) });
   }
 
   private static initialSnapshot(): ConnectivitySnapshot {
