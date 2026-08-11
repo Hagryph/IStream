@@ -47,6 +47,35 @@ class DiagnosticsTestSuite {
         const remoteBody = await remoteResponse.json() as CollectedDiagnosticRecord[];
         expect(remoteBody[0]?.record.event).toBe('remote.sample');
         expect(remoteRequestCount).toBe(1);
+        expect(descriptor?.retainedDurationMs).toBe(10 * 60 * 1000);
+      });
+
+      test('retains the rolling time window and prunes older records on read', () => {
+        let currentTime = 1_000_000;
+        const retentionDurationMs = 10 * 60 * 1000;
+        const hub = new DiagnosticsHub(20, retentionDurationMs, () => currentTime);
+        hub.publish(this.record(1, 'window.boundary'), DiagnosticEventSource.Local);
+        currentTime += retentionDurationMs;
+        hub.publish(this.record(2, 'window.current'), DiagnosticEventSource.Local);
+        expect(hub.snapshot().map((entry) => entry.record.event)).toEqual([
+          'window.boundary',
+          'window.current'
+        ]);
+
+        currentTime += 1;
+        expect(hub.snapshot().map((entry) => entry.record.event)).toEqual(['window.current']);
+      });
+
+      test('enforces the secondary record cap during bursts', () => {
+        const hub = new DiagnosticsHub(2, DiagnosticDefaults.retainedDurationMs);
+        hub.publish(this.record(1, 'burst.first'), DiagnosticEventSource.Local);
+        hub.publish(this.record(2, 'burst.second'), DiagnosticEventSource.Local);
+        hub.publish(this.record(3, 'burst.third'), DiagnosticEventSource.Local);
+
+        expect(hub.snapshot().map((entry) => entry.record.event)).toEqual([
+          'burst.second',
+          'burst.third'
+        ]);
       });
     });
   }

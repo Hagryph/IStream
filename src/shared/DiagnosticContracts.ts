@@ -46,6 +46,7 @@ export interface DiagnosticsEndpointDescriptor {
   readonly snapshotCommand: string;
   readonly streamCommand: string;
   readonly peerSnapshotCommand: string;
+  readonly retainedDurationMs: number;
   readonly retainedRecordLimit: number;
 }
 
@@ -69,10 +70,12 @@ export interface ConnectionDiagnosticValues extends Record<string, DiagnosticVal
 export class DiagnosticDefaults {
   static readonly schemaVersion: number = 1;
   static readonly preferredLoopbackPort: number = 47800;
-  static readonly retainedRecordLimit: number = 1000;
+  static readonly retainedDurationMs: number = 10 * 60 * 1000;
+  static readonly retainedRecordLimit: number = 10_000;
   static readonly peerSampleIntervalMs: number = 1000;
   static readonly maximumValuesPerRecord: number = 64;
-  static readonly maximumPeerRecordsPerRequest: number = 100;
+  static readonly defaultPeerRecordsPerRequest: number = 1000;
+  static readonly maximumPeerRecordsPerRequest: number = 5000;
   static readonly peerBatchRecordCount: number = 10;
-  static readonly peerRequestTimeoutMs: number = 5000;
+  static readonly peerRequestTimeoutMs: number = 10_000;
 }

@@ -34,7 +34,7 @@ export class DiagnosticsPanel extends Component<DiagnosticsPanelProps> {
         <div>
           <span>Follow this PC continuously</span>
           <code>{endpoint.streamCommand}</code>
-          <small>NDJSON records stream until Ctrl+C. A bounded {endpoint.retainedRecordLimit}-record history is replayed first.</small>
+          <small>NDJSON records stream until Ctrl+C. The latest {this.retainedMinutes(endpoint)} minutes are replayed first (up to {endpoint.retainedRecordLimit.toLocaleString()} records).</small>
         </div>
         <div>
           <span>Read this PC once</span>
@@ -44,9 +44,13 @@ export class DiagnosticsPanel extends Component<DiagnosticsPanelProps> {
         <div className={connected ? '' : 'command-disabled'}>
           <span>Pull the connected peer on demand</span>
           <code>{endpoint.peerSnapshotCommand}</code>
-          <small>{connected ? 'Requests the peer’s locally recorded history through the encrypted channel.' : 'Connect and approve a peer before using this command.'}</small>
+          <small>{connected ? `Requests the peer's latest ${this.retainedMinutes(endpoint)} minutes through the encrypted channel.` : 'Connect and approve a peer before using this command.'}</small>
         </div>
       </div>
     );
+  }
+
+  private retainedMinutes(endpoint: DiagnosticsEndpointDescriptor): number {
+    return Math.round(endpoint.retainedDurationMs / 60_000);
   }
 }

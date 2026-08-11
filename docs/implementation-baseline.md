@@ -28,7 +28,7 @@ The baseline configuration is usable and persisted. It defaults to:
 
 ## Diagnostic recording and on-demand transfer
 
-Every connected instance records a structured connection sample once per second into its own bounded memory ring. Recording is local and continues for the session without creating continuous bulk telemetry traffic between peers.
+Every connected instance records a structured connection sample once per second into its own memory ring. It retains the latest ten minutes, with a separate 10,000-record safety cap for unexpected event bursts. Recording is local and continues for the session without creating continuous bulk telemetry traffic between peers.
 
 The local diagnostics reader is an HTTP service bound exclusively to `127.0.0.1`. It exposes:
 
@@ -37,7 +37,7 @@ The local diagnostics reader is an HTTP service bound exclusively to `127.0.0.1`
 - `/peer/snapshot` to request the connected peer's locally retained records on demand
 - `/health` for a minimal reader health check
 
-An on-demand peer request is an authenticated encrypted control message. The peer selects only locally originated diagnostic records and returns them in bounded chunks. Each record is schema-validated before acceptance. Late replies are ignored, oversized batches are rejected, and a request times out after five seconds.
+An on-demand peer request is an authenticated encrypted control message. The peer selects only locally originated diagnostic records and returns them in bounded chunks. The default request permits 1,000 records, covering the full ten-minute window at the baseline one-second rate; an explicit request can ask for up to 5,000. Each record is schema-validated before acceptance. Late replies are ignored, oversized batches are rejected, and a request times out after ten seconds.
 
 The loopback reader deliberately has no LAN binding or CORS access. Diagnostic producers are prohibited from emitting input contents, pairing codes, private keys, derived session keys, authentication material, or decoded media contents.
 

@@ -11,7 +11,7 @@ IStream is a Windows 10 private-LAN remote gaming/desktop streaming project. Thi
 - Ephemeral X25519 session key agreement, mutual signed handshake, AES-256-GCM control messages, monotonic replay counters, and a six-digit first-pair verification code.
 - Explicit approval on both computers, encrypted health checks/RTT, disconnect handling, and consent-based direction reversal.
 - Atomically persisted and validated streaming policy settings.
-- Continuous per-instance diagnostic recording with a bounded 1,000-record in-memory history.
+- Continuous per-instance diagnostic recording with a rolling ten-minute in-memory history and a 10,000-record burst guard.
 - Loopback-only NDJSON diagnostics for command-line inspection and encrypted, on-demand peer-history retrieval.
 - Electron context isolation and a narrow preload API. Renderer code has no Node.js or socket access.
 - Automated enforcement that TypeScript/TSX source has no module-scope functions or variables.
@@ -58,7 +58,7 @@ curl.exe http://127.0.0.1:47800/peer/snapshot
 curl.exe "http://127.0.0.1:47800/peer/snapshot?limit=25"
 ```
 
-Each instance records its own one-second connection samples locally while connected. The permanent encrypted control line carries a diagnostic request only on demand, then returns records in bounded chunks. This prevents background diagnostic history from competing continuously with game traffic. Retrieved peer records are also published into the requester's local `/stream`.
+Each instance records its own one-second connection samples locally while connected and retains the latest ten minutes. The permanent encrypted control line carries a diagnostic request only on demand, then returns records in bounded chunks. A default peer pull allows 1,000 records, enough for the complete ten-minute window at the baseline one-second sampling rate. This prevents background diagnostic history from competing continuously with game traffic. Retrieved peer records are also published into the requester's local `/stream`.
 
 The diagnostic schema includes state, direction/role, RTT, connection age, health-check backlog, control frame/byte counts, encrypted-message counts, and origin/time metadata. Future media and input modules will publish bitrate, FPS, resolution, encoder/decode latency, jitter, loss, dropped/frozen frames, and input safety-state records through the same hub.
 

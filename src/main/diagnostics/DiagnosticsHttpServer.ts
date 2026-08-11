@@ -28,6 +28,7 @@ export class DiagnosticsHttpServer {
       snapshotCommand: `curl.exe ${baseUrl}/snapshot`,
       streamCommand: `curl.exe -N ${baseUrl}/stream`,
       peerSnapshotCommand: `curl.exe ${baseUrl}/peer/snapshot`,
+      retainedDurationMs: DiagnosticDefaults.retainedDurationMs,
       retainedRecordLimit: DiagnosticDefaults.retainedRecordLimit
     };
   }
@@ -87,7 +88,11 @@ export class DiagnosticsHttpServer {
         return;
       }
       if (request.url === '/health') {
-        this.writeJson(response, 200, { status: 'ready', retainedRecords: this.#hub.snapshot().length });
+        this.writeJson(response, 200, {
+          status: 'ready',
+          retainedRecords: this.#hub.snapshot().length,
+          retainedDurationMs: DiagnosticDefaults.retainedDurationMs
+        });
         return;
       }
       if (request.url?.startsWith('/peer/snapshot') === true) {
@@ -145,7 +150,10 @@ export class DiagnosticsHttpServer {
   private async writeRemoteSnapshot(requestUrl: string, response: ServerResponse): Promise<void> {
     try {
       const url = new URL(requestUrl, 'http://127.0.0.1');
-      const requestedLimit = Number.parseInt(url.searchParams.get('limit') ?? `${DiagnosticDefaults.maximumPeerRecordsPerRequest}`, 10);
+      const requestedLimit = Number.parseInt(
+        url.searchParams.get('limit') ?? `${DiagnosticDefaults.defaultPeerRecordsPerRequest}`,
+        10
+      );
       const limit = Math.max(1, Math.min(DiagnosticDefaults.maximumPeerRecordsPerRequest, requestedLimit));
       this.writeJson(response, 200, await this.#remoteRequestHandler(limit));
     } catch (error: unknown) {
