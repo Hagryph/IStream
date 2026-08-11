@@ -1,6 +1,6 @@
 {
   "name": "istream",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Private LAN streaming control-plane baseline for Windows 10",
   "author": "Yannis",
   "license": "PolyForm-Noncommercial-1.0.0",
@@ -9,7 +9,7 @@
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
-    "build": "npm run licenses:audit && npm run check:oop && npm run typecheck && electron-vite build",
+    "build": "npm run licenses:audit && npm run check:oop && npm run typecheck && electron-vite build && node scripts/check-renderer-artifacts.cjs",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",

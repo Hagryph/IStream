@@ -9,6 +9,10 @@ class IStreamInstallerArtifactCopier {
     if (installerArtifact === undefined) {
       throw new Error('electron-builder did not produce an NSIS setup executable.');
     }
+    const PackagedApplicationSmokeTester = require('./smoke-test-packaged-app.cjs');
+    await PackagedApplicationSmokeTester.verify(
+      path.join(buildResult.outDir, 'win-unpacked', 'IStream.exe')
+    );
     const destination = path.join(projectRoot, path.basename(installerArtifact));
     fileSystem.copyFileSync(installerArtifact, destination);
     process.stdout.write(`  - copied installer to project root: ${destination}\n`);

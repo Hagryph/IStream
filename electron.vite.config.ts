@@ -9,7 +9,13 @@ export default defineConfig({
   },
   preload: {
     build: {
-      sourcemap: true
+      sourcemap: true,
+      rollupOptions: {
+        output: {
+          format: 'cjs',
+          entryFileNames: 'index.cjs'
+        }
+      }
     }
   },
   renderer: {

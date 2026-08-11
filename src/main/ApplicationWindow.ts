@@ -5,6 +5,7 @@ export class ApplicationWindow {
   #window: BrowserWindow | null = null;
 
   public create(): BrowserWindow {
+    const smokeTest = process.argv.includes('--istream-smoke-test');
     this.#window = new BrowserWindow({
       width: 1120,
       height: 760,
@@ -14,14 +15,18 @@ export class ApplicationWindow {
       show: false,
       title: 'IStream',
       webPreferences: {
-        preload: join(__dirname, '../preload/index.mjs'),
+        preload: join(__dirname, '../preload/index.cjs'),
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: true
       }
     });
     this.#window.removeMenu();
-    this.#window.once('ready-to-show', () => this.#window?.show());
+    this.#window.once('ready-to-show', () => {
+      if (!smokeTest) {
+        this.#window?.show();
+      }
+    });
     const developmentUrl = process.env.ELECTRON_RENDERER_URL;
     if (developmentUrl !== undefined) {
       void this.#window.loadURL(developmentUrl);
