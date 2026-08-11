@@ -78,6 +78,14 @@ The native engine must add Windows Graphics Capture/DXGI capture, NVENC, low-lat
 
 See [implementation status](docs/implementation-baseline.md), [architecture research](docs/research/lan-streaming-architecture.md), and [configuration specification](docs/research/configuration-specification.md).
 
+## Build and GitHub publishing
+
+`npm run dist` builds the NSIS installer, copies it to the project root, synchronizes reviewed source changes to `main`, and publishes `v<package.json version>` as the latest GitHub Release. The release contains the installer, block map, `latest.yml`, and SHA-256 checksums.
+
+Publishing requires the expected `Hagryph/IStream` origin, the `main` branch, a clean working tree synchronized with `origin/main`, and an authenticated GitHub CLI. Rebuilding the same commit replaces that release's assets. If the version tag already belongs to a different commit, publishing stops and requires a version bump instead of moving a released tag.
+
+For a deliberately local package build, set `ISTREAM_SKIP_GITHUB_SYNC=1` and `ISTREAM_SKIP_GITHUB_RELEASE=1` before running `npm run dist`.
+
 ## License
 
 IStream-owned source code and documentation are publicly source-available under the [PolyForm Noncommercial License 1.0.0](LICENSE.md). Commercial use of IStream-owned code, including commercial use of modified portions, is not granted.

@@ -14,6 +14,8 @@ class IStreamInstallerArtifactCopier {
     process.stdout.write(`  - copied installer to project root: ${destination}\n`);
     const GitHubBuildSynchronizer = require('./sync-github-after-build.cjs');
     await GitHubBuildSynchronizer.synchronize(projectRoot);
+    const GitHubReleasePublisher = require('./publish-github-release.cjs');
+    await GitHubReleasePublisher.publish(projectRoot, buildResult.outDir);
     return [];
   }
 }
