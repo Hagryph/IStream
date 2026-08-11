@@ -109,10 +109,12 @@ export class App extends Component<Record<string, never>, AppState> {
             onReverse={() => this.perform(() => window.istream.requestReversal())}
             onDisconnect={() => this.perform(() => window.istream.disconnect())}
           />
-          <StreamViewport
-            media={this.state.media}
-            role={this.state.snapshot.connection.role}
-          />
+          {this.state.snapshot.connection.state === ConnectionState.Connected ? (
+            <StreamViewport
+              media={this.state.media}
+              role={this.state.snapshot.connection.role}
+            />
+          ) : null}
           <div className="two-column">
             <PeerList
               peers={this.state.snapshot.discoveredPeers}
