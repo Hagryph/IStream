@@ -1,0 +1,5 @@
+Required Notice: Copyright 2026 Hagryph. IStream original project code is licensed under the PolyForm Noncommercial License 1.0.0.
+
+IStream includes third-party components that are not covered by the IStream
+noncommercial license. Those components remain under their respective licenses.
+See THIRD_PARTY_NOTICES.md and the installed Electron/Chromium license files.

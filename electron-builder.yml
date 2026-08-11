@@ -1,0 +1,30 @@
+appId: local.istream.app
+productName: IStream
+asar: true
+directories:
+  output: dist
+afterAllArtifactBuild: scripts/copy-installer-to-root.cjs
+extraResources:
+  - from: LICENSE.md
+    to: legal/LICENSE.md
+  - from: NOTICE
+    to: legal/NOTICE
+  - from: THIRD_PARTY_NOTICES.md
+    to: legal/THIRD_PARTY_NOTICES.md
+  - from: docs/legal/dependency-license-report.json
+    to: legal/dependency-license-report.json
+files:
+  - out/**/*
+  - package.json
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: IStream-${version}-Setup.${ext}
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true

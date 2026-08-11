@@ -1,0 +1,17 @@
+node_modules/
+out/
+dist/
+coverage/
+*.log
+IStream-*-Setup.exe
+.vite/
+.env
+.env.*
+!.env.example
+*.pfx
+*.p12
+*.pem
+*.key
+*.cer
+dev-app-update.yml
+app-update.yml
