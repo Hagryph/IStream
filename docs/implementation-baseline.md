@@ -34,6 +34,8 @@ The baseline configuration is usable and persisted. It defaults to:
 
 The connected media roles now start an actual WebRTC session inside Electron. The sharing side captures the primary Windows display and system-audio loopback. The viewer renders the remote stream in the application with full-screen support. WebRTC offer, answer, and ICE candidate messages are schema-bounded and carried only inside the authenticated encrypted control session. No public STUN/TURN service or internet relay is configured.
 
+Both endpoints sample WebRTC statistics once per second. The live panel and ten-minute diagnostics include resolution, FPS, video/audio bitrate, packet loss, jitter, jitter-buffer delay, media RTT, encode/decode time, dropped frames, freezes, codec/implementation, and quality-limitation reason. The image-path value is explicitly estimated from observable stages and is not presented as authoritative glass-to-glass latency.
+
 The sender prefers H.264, applies the configured bitrate and frame-rate ceiling, sets a 1:1 resolution scale, and requests resolution-preserving degradation. A disconnected media path retains the last rendered frame while the sharing side performs an ICE restart. Direction reversal tears down the old media role and starts a fresh generation in the opposite direction.
 
 This is the functional fallback/baseline, not the final native competitive-gaming engine. Chromium controls detailed congestion behavior and hardware encoder selection. Protected surfaces and some hardware overlays may still capture black. Explicit WGC/DXGI selection, NVENC preset control, HDR, measured latency guarantees, and the strict freeze-at-HD capacity floor remain native-sidecar work.

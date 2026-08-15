@@ -21,6 +21,13 @@ import { DiagnosticsHub } from '../diagnostics/DiagnosticsHub';
 import { DiagnosticsHttpServer } from '../diagnostics/DiagnosticsHttpServer';
 import type { CollectedDiagnosticRecord } from '../../shared/DiagnosticContracts';
 import type { MediaSignal } from '../../shared/MediaContracts';
+import {
+  DiagnosticCategory,
+  DiagnosticDefaults,
+  DiagnosticEventSource,
+  DiagnosticSeverity
+} from '../../shared/DiagnosticContracts';
+import { MediaMetricSampleValidator } from '../media/MediaMetricSampleValidator';
 
 export interface ConnectivityRuntimeOptions {
   readonly userDataPath: string;
@@ -38,6 +45,7 @@ export class ConnectivityFacade {
   readonly #listeners: Set<ConnectivityFacadeListener> = new Set<ConnectivityFacadeListener>();
   readonly #mediaSignalListeners: Set<(signal: MediaSignal) => void> = new Set<(signal: MediaSignal) => void>();
   readonly #diagnosticsHub: DiagnosticsHub = new DiagnosticsHub();
+  readonly #mediaMetricValidator: MediaMetricSampleValidator = new MediaMetricSampleValidator();
   #serviceState: ServiceState = ServiceState.Starting;
   #identity: DeviceIdentity | null = null;
   #pairedPeerStore: PairedPeerStore | null = null;
@@ -46,6 +54,7 @@ export class ConnectivityFacade {
   #discoveryService: DiscoveryService | null = null;
   #diagnosticsHttpServer: DiagnosticsHttpServer | null = null;
   #lastOperationError: string | null = null;
+  #mediaDiagnosticSequence: number = 0;
 
   public constructor(options: ConnectivityRuntimeOptions) {
     this.#options = options;
@@ -148,6 +157,25 @@ export class ConnectivityFacade {
 
   public sendMediaSignal(signal: MediaSignal): void {
     this.requiredManager().sendMediaSignal(signal);
+  }
+
+  public reportMediaMetrics(value: unknown): void {
+    if (this.#identity === null) {
+      throw new Error('Connectivity service is not ready.');
+    }
+    const sample = this.#mediaMetricValidator.validate(value);
+    this.#mediaDiagnosticSequence += 1;
+    this.#diagnosticsHub.publish({
+      schemaVersion: DiagnosticDefaults.schemaVersion,
+      sequence: this.#mediaDiagnosticSequence,
+      timestamp: sample.timestamp,
+      originDeviceId: this.#identity.deviceId,
+      originDisplayName: this.#identity.displayName,
+      category: DiagnosticCategory.Media,
+      severity: DiagnosticSeverity.Information,
+      event: 'media.sample',
+      values: { ...sample }
+    }, DiagnosticEventSource.Local);
   }
 
   public async connectManual(request: ManualConnectionRequest): Promise<void> {

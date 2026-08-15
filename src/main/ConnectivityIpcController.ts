@@ -52,6 +52,10 @@ export class ConnectivityIpcController {
       IpcChannels.mediaSendSignal,
       (_event: IpcMainInvokeEvent, signal: MediaSignal) => this.#facade.sendMediaSignal(signal)
     );
+    ipcMain.handle(
+      IpcChannels.mediaReportMetrics,
+      (_event: IpcMainInvokeEvent, sample: unknown) => this.#facade.reportMediaMetrics(sample)
+    );
     this.#unsubscribeSnapshot = this.#facade.subscribe((snapshot) => {
       for (const window of BrowserWindow.getAllWindows()) {
         if (!window.isDestroyed()) {
@@ -80,6 +84,7 @@ export class ConnectivityIpcController {
     ipcMain.removeHandler(IpcChannels.configurationGet);
     ipcMain.removeHandler(IpcChannels.configurationUpdate);
     ipcMain.removeHandler(IpcChannels.mediaSendSignal);
+    ipcMain.removeHandler(IpcChannels.mediaReportMetrics);
     this.#unsubscribeSnapshot?.();
     this.#unsubscribeSnapshot = null;
     this.#unsubscribeMediaSignals?.();

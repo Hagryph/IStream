@@ -11,5 +11,6 @@ export class IpcChannels {
   static readonly configurationGet: string = 'configuration:get';
   static readonly configurationUpdate: string = 'configuration:update';
   static readonly mediaSendSignal: string = 'media:send-signal';
+  static readonly mediaReportMetrics: string = 'media:report-metrics';
   static readonly mediaSignalReceived: string = 'media:signal-received';
 }

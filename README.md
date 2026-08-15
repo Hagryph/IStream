@@ -20,6 +20,7 @@ IStream is a Windows 10 private-LAN remote gaming/desktop streaming project. It 
 - Primary-display capture and Windows system-audio loopback on the sharing PC, with video/audio playback and a full-screen viewer on the receiving PC.
 - LAN-only WebRTC media with SDP and ICE candidates carried through the authenticated AES-256-GCM control channel; no STUN, TURN, cloud relay, or internet service is configured.
 - H.264 preference for GTX 1060-class compatibility, profile-controlled bitrate/FPS targets, resolution-preserving congestion preference, and automatic ICE restart after an interrupted media path.
+- Live WebRTC metrics for resolution, FPS, video/audio bitrate, loss, jitter, jitter-buffer delay, media RTT, encode/decode time, dropped frames, freezes, codec/implementation, and an explicitly estimated image-path delay.
 
 ## Run it
 
@@ -67,7 +68,9 @@ Each instance records its own one-second connection samples locally while connec
 
 Encrypted diagnostic envelopes accept the bounded multi-record batches produced by the protocol, and every session closure records its reason and previous state before sampling stops. This keeps a failed or closed connection from leaving a misleading final `connected` record.
 
-The diagnostic schema includes state, direction/role, RTT, connection age, health-check backlog, control frame/byte counts, encrypted-message counts, and origin/time metadata. Future media and input modules will publish bitrate, FPS, resolution, encoder/decode latency, jitter, loss, dropped/frozen frames, and input safety-state records through the same hub.
+The diagnostic schema includes state, direction/role, RTT, connection age, health-check backlog, control frame/byte counts, encrypted-message counts, and origin/time metadata. While media is connected, each endpoint also records `media.sample` once per second with bitrate, FPS, resolution, codec, encoder/decode time, media RTT, jitter, jitter-buffer delay, loss, dropped/frozen frames, and implementation/quality-limitation information.
+
+The displayed image-path delay is an estimate composed from half the measured media RTT plus available jitter-buffer and local encode/decode time. It deliberately does not claim true glass-to-glass delay because capture, remote processing, display queueing, and scan-out are not all observable from one WebRTC endpoint. A later visual timecode/photodiode qualification mode is required for authoritative end-to-end latency.
 
 Diagnostics never contain keystrokes, mouse contents, pairing verification codes, private identity keys, session keys, authentication tags, or decrypted media. The HTTP reader binds only to `127.0.0.1`, so it is not exposed to the LAN and needs no firewall rule.
 

@@ -3,9 +3,11 @@ import {
   MediaSignalFactory,
   MediaSignalKind,
   type MediaApi,
+  type MediaMetricSample,
   type MediaSignal
 } from '../../../shared/MediaContracts';
 import { VideoCodec, type StreamingConfiguration } from '../../../shared/StreamingConfigurationContracts';
+import { WebRtcMetricsCollector } from './WebRtcMetricsCollector';
 
 export enum RendererMediaState {
   Idle = 'idle',
@@ -21,6 +23,7 @@ export interface RendererMediaPresentation {
   readonly detail: string;
   readonly stream: MediaStream | null;
   readonly muted: boolean;
+  readonly metrics: MediaMetricSample | null;
 }
 
 export type RendererMediaListener = (presentation: RendererMediaPresentation) => void;
@@ -31,6 +34,7 @@ export class WebRtcMediaSession {
   readonly #pendingSignals: MediaSignal[] = [];
   readonly #pendingCandidates: MediaSignal[] = [];
   readonly #pendingLocalSignals: MediaSignal[] = [];
+  readonly #metricsCollector: WebRtcMetricsCollector = new WebRtcMetricsCollector();
   #peerConnection: RTCPeerConnection | null = null;
   #localStream: MediaStream | null = null;
   #remoteStream: MediaStream | null = null;
@@ -40,6 +44,8 @@ export class WebRtcMediaSession {
   #unsubscribeSignal: (() => void) | null = null;
   #restartTimer: number | null = null;
   #localDescriptionAnnounced: boolean = false;
+  #metricsTimer: number | null = null;
+  #lastPresentation: RendererMediaPresentation | null = null;
 
   public constructor(api: MediaApi, listener: RendererMediaListener) {
     this.#api = api;
@@ -60,6 +66,7 @@ export class WebRtcMediaSession {
       return;
     }
     this.stopMediaResources();
+    this.#lastPresentation = null;
     this.#role = connection.role;
     this.#configuration = configuration;
     if (this.#role === LocalMediaRole.Viewer) {
@@ -303,6 +310,7 @@ export class WebRtcMediaSession {
     if (state === 'connected') {
       const stream = this.#role === LocalMediaRole.Sharer ? this.#localStream : this.#remoteStream;
       this.publish(RendererMediaState.Streaming, 'HD video and system audio are connected.', stream, this.#role === LocalMediaRole.Sharer);
+      this.startMetricsCollection();
       return;
     }
     if (state !== 'disconnected' && state !== 'failed') {
@@ -326,6 +334,7 @@ export class WebRtcMediaSession {
     this.#configuration = null;
     this.#generation = null;
     this.#pendingSignals.splice(0);
+    this.#lastPresentation = null;
     this.publish(RendererMediaState.Idle, 'Connect to another PC to begin streaming.', null, false);
   }
 
@@ -334,6 +343,11 @@ export class WebRtcMediaSession {
       window.clearTimeout(this.#restartTimer);
       this.#restartTimer = null;
     }
+    if (this.#metricsTimer !== null) {
+      window.clearInterval(this.#metricsTimer);
+      this.#metricsTimer = null;
+    }
+    this.#metricsCollector.reset();
     this.#peerConnection?.close();
     this.#peerConnection = null;
     for (const track of this.#localStream?.getTracks() ?? []) {
@@ -386,6 +400,34 @@ export class WebRtcMediaSession {
   }
 
   private publish(state: RendererMediaState, detail: string, stream: MediaStream | null, muted: boolean): void {
-    this.#listener({ state, detail, stream, muted });
+    this.#lastPresentation = { state, detail, stream, muted, metrics: this.#lastPresentation?.metrics ?? null };
+    this.#listener(this.#lastPresentation);
+  }
+
+  private startMetricsCollection(): void {
+    if (this.#metricsTimer !== null) {
+      return;
+    }
+    void this.collectMetrics();
+    this.#metricsTimer = window.setInterval(() => {
+      void this.collectMetrics();
+    }, 1000);
+  }
+
+  private async collectMetrics(): Promise<void> {
+    const peerConnection = this.#peerConnection;
+    if (peerConnection === null || this.#role === LocalMediaRole.None || peerConnection.connectionState === 'closed') {
+      return;
+    }
+    try {
+      const metrics = await this.#metricsCollector.collect(peerConnection, this.#role);
+      if (this.#lastPresentation !== null) {
+        this.#lastPresentation = { ...this.#lastPresentation, metrics };
+        this.#listener(this.#lastPresentation);
+      }
+      await this.#api.reportMediaMetrics(metrics);
+    } catch (error: unknown) {
+      console.warn('IStream media metrics could not be sampled', error);
+    }
   }
 }

@@ -48,6 +48,24 @@ export class StreamViewport extends Component<StreamViewportProps> {
             Full screen
           </button>
         </div>
+        {this.props.media.metrics === null ? null : (
+          <div className="media-metrics" aria-label="Live stream metrics">
+            <div><span>Picture</span><strong>{this.resolution()}</strong></div>
+            <div><span>Video rate</span><strong>{this.metric(this.props.media.metrics.videoBitrateMbps, ' Mbps')}</strong></div>
+            <div><span>Frame rate</span><strong>{this.metric(this.props.media.metrics.framesPerSecond, ' FPS')}</strong></div>
+            <div title="Estimated network half-RTT plus jitter-buffer and local encode/decode time. Capture, display scan-out, and remote encode/decode stages unavailable on this endpoint are excluded.">
+              <span>Image path estimate</span><strong>{this.metric(this.props.media.metrics.estimatedImageDelayMs, ' ms')}</strong>
+            </div>
+            <div><span>Media RTT</span><strong>{this.metric(this.props.media.metrics.mediaRoundTripTimeMs, ' ms')}</strong></div>
+            <div><span>Packet loss</span><strong>{this.metric(this.props.media.metrics.packetLossPercent, '%')}</strong></div>
+            <div><span>Jitter / buffer</span><strong>{this.jitter()}</strong></div>
+            <div><span>Codec</span><strong>{this.props.media.metrics.codec ?? '—'}</strong></div>
+            <div><span>Audio rate</span><strong>{this.metric(this.props.media.metrics.audioBitrateKbps, ' Kbps')}</strong></div>
+            <div><span>Encode / decode</span><strong>{this.processingTime()}</strong></div>
+            <div><span>Dropped frames</span><strong>{this.metric(this.props.media.metrics.framesDropped, '')}</strong></div>
+            <div><span>Freezes</span><strong>{this.metric(this.props.media.metrics.freezeCount, '')}</strong></div>
+          </div>
+        )}
       </section>
     );
   }
@@ -77,5 +95,30 @@ export class StreamViewport extends Component<StreamViewportProps> {
       return 'Sharing this screen and system audio';
     }
     return 'Video and audio stream';
+  }
+
+  private resolution(): string {
+    const metrics = this.props.media.metrics;
+    return metrics?.videoWidth === null || metrics?.videoHeight === null || metrics === null
+      ? '—'
+      : `${metrics.videoWidth}×${metrics.videoHeight}`;
+  }
+
+  private jitter(): string {
+    const metrics = this.props.media.metrics;
+    return metrics === null
+      ? '—'
+      : `${this.metric(metrics.jitterMs, ' ms')} / ${this.metric(metrics.jitterBufferDelayMs, ' ms')}`;
+  }
+
+  private processingTime(): string {
+    const metrics = this.props.media.metrics;
+    return metrics === null
+      ? '—'
+      : `${this.metric(metrics.encodeTimeMsPerFrame, ' ms')} / ${this.metric(metrics.decodeTimeMsPerFrame, ' ms')}`;
+  }
+
+  private metric(value: number | null, suffix: string): string {
+    return value === null ? '—' : `${value}${suffix}`;
   }
 }

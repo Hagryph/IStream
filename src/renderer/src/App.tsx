@@ -53,7 +53,8 @@ export class App extends Component<Record<string, never>, AppState> {
         state: RendererMediaState.Idle,
         detail: 'Connect to another PC to begin streaming.',
         stream: null,
-        muted: false
+        muted: false,
+        metrics: null
       }
     };
   }
