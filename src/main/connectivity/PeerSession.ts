@@ -624,7 +624,10 @@ export class PeerSession {
   }
 
   private keepAliveTick(): void {
-    if (Date.now() - this.#lastSecureMessageAt > ConnectivityDefaults.connectionTimeoutMs) {
+    const timeoutMs = this.#phase === PeerSessionPhase.Connected
+      ? ConnectivityDefaults.connectionTimeoutMs
+      : ConnectivityDefaults.pairingConnectionTimeoutMs;
+    if (Date.now() - this.#lastSecureMessageAt > timeoutMs) {
       this.closeWithError('Connection health check timed out.', false);
       return;
     }

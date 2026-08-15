@@ -132,7 +132,8 @@ export class ConnectivityDefaults {
   static readonly beaconIntervalMs: number = 2000;
   static readonly peerExpiryMs: number = 7000;
   static readonly keepAliveIntervalMs: number = 2000;
-  static readonly connectionTimeoutMs: number = 5000;
+  static readonly pairingConnectionTimeoutMs: number = 5000;
+  static readonly connectionTimeoutMs: number = 15_000;
   static readonly trustDurationMs: number = 30 * 24 * 60 * 60 * 1000;
 }
 import type { DiagnosticsEndpointDescriptor } from './DiagnosticContracts';
