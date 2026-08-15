@@ -30,6 +30,7 @@ export class WebRtcMediaSession {
   readonly #listener: RendererMediaListener;
   readonly #pendingSignals: MediaSignal[] = [];
   readonly #pendingCandidates: MediaSignal[] = [];
+  readonly #pendingLocalSignals: MediaSignal[] = [];
   #peerConnection: RTCPeerConnection | null = null;
   #localStream: MediaStream | null = null;
   #remoteStream: MediaStream | null = null;
@@ -38,6 +39,7 @@ export class WebRtcMediaSession {
   #configuration: StreamingConfiguration | null = null;
   #unsubscribeSignal: (() => void) | null = null;
   #restartTimer: number | null = null;
+  #localDescriptionAnnounced: boolean = false;
 
   public constructor(api: MediaApi, listener: RendererMediaListener) {
     this.#api = api;
@@ -102,7 +104,7 @@ export class WebRtcMediaSession {
           height: { ideal: configuration.targetHeight },
           frameRate: {
             ideal: configuration.targetFramesPerSecond,
-            min: configuration.minimumFramesPerSecond
+            max: configuration.targetFramesPerSecond
           }
         },
         audio: true
@@ -111,10 +113,7 @@ export class WebRtcMediaSession {
         if (track.kind === 'video') {
           track.contentHint = 'motion';
         }
-        const sender = peerConnection.addTrack(track, this.#localStream);
-        if (track.kind === 'video') {
-          await this.configureVideoSender(sender, configuration);
-        }
+        peerConnection.addTrack(track, this.#localStream);
       }
       this.preferConfiguredVideoCodec(peerConnection, configuration.codec);
       this.publish(RendererMediaState.Negotiating, 'Connecting the video and audio stream...', this.#localStream, true);
@@ -126,6 +125,8 @@ export class WebRtcMediaSession {
 
   private createPeerConnection(): RTCPeerConnection {
     this.#peerConnection?.close();
+    this.#pendingLocalSignals.splice(0);
+    this.#localDescriptionAnnounced = false;
     const peerConnection = new RTCPeerConnection({ iceServers: [], iceCandidatePoolSize: 0 });
     peerConnection.onicecandidate = (event) => {
       const generation = this.#generation;
@@ -135,7 +136,7 @@ export class WebRtcMediaSession {
       const signal = event.candidate === null
         ? MediaSignalFactory.iceComplete(generation)
         : MediaSignalFactory.iceCandidate(generation, event.candidate);
-      void this.#api.sendMediaSignal(signal).catch((error: unknown) => this.fail(error));
+      this.sendOrQueueLocalSignal(signal);
     };
     peerConnection.ontrack = (event) => {
       const stream = event.streams[0];
@@ -168,8 +169,10 @@ export class WebRtcMediaSession {
       await this.#api.sendMediaSignal(MediaSignalFactory.sessionDescription(
         signal.generation,
         MediaSignalKind.Answer,
-        answer.sdp ?? ''
+        peerConnection.localDescription?.sdp ?? answer.sdp ?? ''
       ));
+      this.#localDescriptionAnnounced = true;
+      await this.flushPendingLocalSignals();
       return;
     }
     if (signal.generation !== this.#generation) {
@@ -214,31 +217,66 @@ export class WebRtcMediaSession {
 
   private async sendOffer(iceRestart: boolean): Promise<void> {
     const peerConnection = this.requiredPeerConnection();
+    if (iceRestart) {
+      this.#generation = crypto.randomUUID();
+      this.#pendingCandidates.splice(0);
+    }
     const generation = this.#generation;
     if (generation === null) {
       return;
     }
+    this.#localDescriptionAnnounced = false;
+    this.#pendingLocalSignals.splice(0);
     const offer = await peerConnection.createOffer({ iceRestart });
     await peerConnection.setLocalDescription(offer);
     await this.#api.sendMediaSignal(MediaSignalFactory.sessionDescription(
       generation,
       MediaSignalKind.Offer,
-      offer.sdp ?? ''
+      peerConnection.localDescription?.sdp ?? offer.sdp ?? ''
     ));
+    this.#localDescriptionAnnounced = true;
+    await this.flushPendingLocalSignals();
+    await this.configureVideoSenders(peerConnection, this.requiredConfiguration());
+  }
+
+  private async configureVideoSenders(
+    peerConnection: RTCPeerConnection,
+    configuration: StreamingConfiguration
+  ): Promise<void> {
+    for (const sender of peerConnection.getSenders()) {
+      if (sender.track?.kind === 'video') {
+        await this.configureVideoSender(sender, configuration).catch(() => undefined);
+      }
+    }
   }
 
   private async configureVideoSender(sender: RTCRtpSender, configuration: StreamingConfiguration): Promise<void> {
     const parameters = sender.getParameters();
+    const encoding = parameters.encodings[0];
+    if (encoding === undefined) {
+      return;
+    }
     parameters.degradationPreference = 'maintain-resolution';
-    parameters.encodings = parameters.encodings.length === 0 ? [{}] : parameters.encodings;
-    parameters.encodings[0] = {
-      ...parameters.encodings[0],
-      active: true,
-      maxBitrate: configuration.maximumBitrateMbps * 1_000_000,
-      maxFramerate: configuration.targetFramesPerSecond,
-      scaleResolutionDownBy: 1
-    };
+    encoding.active = true;
+    encoding.maxBitrate = configuration.maximumBitrateMbps * 1_000_000;
+    encoding.maxFramerate = configuration.targetFramesPerSecond;
+    encoding.scaleResolutionDownBy = 1;
     await sender.setParameters(parameters);
+  }
+
+  private sendOrQueueLocalSignal(signal: MediaSignal): void {
+    if (!this.#localDescriptionAnnounced) {
+      this.#pendingLocalSignals.push(signal);
+      return;
+    }
+    void this.#api.sendMediaSignal(signal).catch((error: unknown) => this.fail(error));
+  }
+
+  private async flushPendingLocalSignals(): Promise<void> {
+    const signals = this.#pendingLocalSignals.splice(0);
+    for (const signal of signals) {
+      await this.#api.sendMediaSignal(signal);
+    }
   }
 
   private preferConfiguredVideoCodec(peerConnection: RTCPeerConnection, codec: VideoCodec): void {
@@ -304,13 +342,33 @@ export class WebRtcMediaSession {
     this.#localStream = null;
     this.#remoteStream = null;
     this.#pendingCandidates.splice(0);
+    this.#pendingLocalSignals.splice(0);
+    this.#localDescriptionAnnounced = false;
   }
 
   private fail(error: unknown): void {
-    const detail = error instanceof DOMException && error.name === 'NotAllowedError'
-      ? 'Screen capture was not allowed. Disconnect and reconnect to try again.'
-      : 'The video stream could not start. Disconnect and reconnect; verify that both PCs use the latest IStream version.';
+    const detail = this.failureDetail(error);
+    console.error('IStream media failure', error);
     this.publish(RendererMediaState.Failed, detail, this.#remoteStream, false);
+  }
+
+  private failureDetail(error: unknown): string {
+    if (error instanceof TypeError) {
+      return 'The saved video settings could not be applied. Restore the Gaming preset and reconnect.';
+    }
+    if (error instanceof DOMException && error.name === 'NotAllowedError') {
+      return 'Screen capture was not allowed. Disconnect and reconnect to try again.';
+    }
+    if (error instanceof DOMException && ['NotFoundError', 'NotReadableError'].includes(error.name)) {
+      return 'Windows could not capture the selected screen or system audio. Close other capture software and reconnect.';
+    }
+    if (error instanceof DOMException && error.name === 'InvalidStateError') {
+      return 'Screen capture could not start automatically. Disconnect, then connect again from this window.';
+    }
+    if (error instanceof DOMException && error.name === 'OperationError') {
+      return 'The PCs could not negotiate a compatible video encoder. Select H.264 on both PCs and reconnect.';
+    }
+    return 'The media path could not start. Install the same latest IStream version on both PCs and reconnect.';
   }
 
   private requiredPeerConnection(): RTCPeerConnection {
